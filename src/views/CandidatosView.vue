@@ -1,14 +1,39 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { buscarCandidatos } from '../firebase/candidatosService'
+
+const route = useRoute()
+
+// Lemos o que a Home enviou na URL
+const ufUrl = route.query.uf || ''
+const cargoUrl = route.query.cargo || ''
 
 const carregando = ref(true)
 const busca = ref('')
 const partidoSelecionado = ref('')
 const candidatos = ref([])
 
+// Dicionário para o título
+const CARGOS = {
+  1: "Presidente", 2: "Vice-Presidente", 3: "Governador", 4: "Vice-Governador",
+  5: "Senador", 6: "Deputado Federal", 7: "Deputado Estadual", 8: "Deputado Distrital",
+  9: "1º Suplente", 10: "2º Suplente"
+};
+
+// Computa o título dinâmico
+const tituloPagina = computed(() => {
+  if (cargoUrl && ufUrl) {
+    const nomeCargo = CARGOS[cargoUrl] || 'Candidatos'
+    const textoUf = ufUrl === 'BR' ? 'no Brasil' : `em ${ufUrl}`
+    return `Candidaturas para ${nomeCargo} ${textoUf}`
+  }
+  return 'Todos os Candidatos'
+})
+
 onMounted(async () => {
-  candidatos.value = await buscarCandidatos()
+  // Passamos os filtros da URL para buscar apenas o que foi selecionado na Home
+  candidatos.value = await buscarCandidatos(ufUrl, cargoUrl)
   carregando.value = false
 })
 
@@ -37,7 +62,7 @@ const formatarMoeda = (valor) => {
   <div class="space-y-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
-        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">Candidaturas Presidenciais</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ tituloPagina }}</h1>
         <p class="text-slate-500 text-sm mt-1">Explore os perfis, patrimônio declarado e prestação de contas.</p>
       </div>
 

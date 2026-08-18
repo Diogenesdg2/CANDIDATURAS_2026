@@ -1,67 +1,88 @@
 import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "./src/firebase/config.js";
 
-// A URL correta que você encontrou!
-const urlTSE = "https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/listar/2026/BR/20322002026/1/candidatos";
+const ID_ELEICAO = "20322002026";
+const ANO = 2026;
 const candidatosCollection = collection(db, "candidatos");
 
+// Dicionário de cargos para traduzir o código do TSE em texto legível
+const CARGOS = {
+  1: "Presidente",
+  2: "Vice-Presidente",
+  3: "Governador",
+  4: "Vice-Governador",
+  5: "Senador",
+  6: "Deputado Federal",
+  7: "Deputado Estadual",
+  8: "Deputado Distrital",
+  9: "1º Suplente",
+  10: "2º Suplente"
+};
+
+// 🎯 LISTA DE TAREFAS: Adicione ou remova as buscas que deseja fazer
+const buscas = [
+  { uf: "BR", codigoCargo: 1 }, // Presidente (Nacional)
+  { uf: "SP", codigoCargo: 3 }, // Governador (São Paulo)
+  { uf: "SP", codigoCargo: 5 }, // Senador (São Paulo)
+];
+
 async function importarCandidatosDoTSE() {
-  console.log("Iniciando conexão com a API do TSE (Eleições 2026)...");
+  console.log("Iniciando sincronização inteligente com o TSE...\n");
+  let totalInseridos = 0;
 
-  try {
-    const resposta = await fetch(urlTSE);
+  for (const tarefa of buscas) {
+    const nomeCargo = CARGOS[tarefa.codigoCargo];
+    console.log(`⏳ Buscando ${nomeCargo} para a região ${tarefa.uf}...`);
 
-    if (!resposta.ok) {
-      throw new Error(`Erro na API do TSE: Status ${resposta.status}`);
-    }
+    const urlTSE = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/listar/${ANO}/${tarefa.uf}/${ID_ELEICAO}/${tarefa.codigoCargo}/candidatos`;
 
-    const dados = await resposta.json();
-    const listaCandidatos = dados.candidatos;
+    try {
+      const resposta = await fetch(urlTSE);
+      if (!resposta.ok) throw new Error(`Status ${resposta.status}`);
 
-    console.log(`Encontrados ${listaCandidatos.length} candidatos presidenciais registrados em 2026.`);
-    console.log("Sincronizando com o Firestore...");
+      const dados = await resposta.json();
+      const listaCandidatos = dados.candidatos || [];
+      console.log(`   Encontrados: ${listaCandidatos.length} registros. Processando...`);
 
-    let inseridos = 0;
+      for (const cand of listaCandidatos) {
+        const q = query(candidatosCollection, where("idTse", "==", cand.id));
+        const querySnapshot = await getDocs(q);
 
-    for (const cand of listaCandidatos) {
-      const q = query(candidatosCollection, where("idTse", "==", cand.id));
-      const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+          const nomePartido = (cand.partido && cand.partido.sigla)
+                               ? cand.partido.sigla
+                               : (cand.siglaPartido || "Sem Partido");
 
-      if (querySnapshot.empty) {
+          await addDoc(candidatosCollection, {
+            idTse: cand.id,
+            nomeUrna: cand.nomeUrna || "Nome não informado",
+            nomeCompleto: cand.nomeCompleto || "Nome não informado",
+            numero: cand.numero || 0,
+            partido: nomePartido,
 
-        // Validação segura para encontrar o nome do partido
-        const nomePartido = (cand.partido && cand.partido.sigla)
-                             ? cand.partido.sigla
-                             : (cand.siglaPartido || "Sem Partido");
+            // Novos campos de arquitetura:
+            cargo: nomeCargo,
+            codigoCargo: tarefa.codigoCargo,
+            uf: tarefa.uf,
 
-        await addDoc(candidatosCollection, {
-          idTse: cand.id,
-          nomeUrna: cand.nomeUrna || "Nome não informado",
-          nomeCompleto: cand.nomeCompleto || "Nome não informado",
-          numero: cand.numero || 0,
-          partido: nomePartido,
-          cargo: "Presidente",
-          totalReceitas: 0,
-          totalDespesas: 0,
-          totalBens: cand.totalBens || 0,
-          fotoUrl: `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/foto/2/20322002026/${cand.id}`,
-          ano: 2026,
-          atualizadoEm: new Date().toISOString()
-        });
-        inseridos++;
-        console.log(`✅ Salvo: ${cand.nomeUrna || 'Sem nome'} (${nomePartido})`);
-      } else {
-        console.log(`⚠️ Ignorado (Já existe no banco): ${cand.nomeUrna || 'Sem nome'}`);
+            totalReceitas: 0,
+            totalDespesas: 0,
+            totalBens: cand.totalBens || 0,
+            fotoUrl: `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/foto/2/${ID_ELEICAO}/${cand.id}`,
+            ano: ANO,
+            atualizadoEm: new Date().toISOString()
+          });
+          totalInseridos++;
+        }
       }
+      console.log(`   ✅ Lote de ${nomeCargo} (${tarefa.uf}) concluído.\n`);
+    } catch (erro) {
+      console.error(`   ❌ Falha ao processar ${nomeCargo} (${tarefa.uf}):`, erro.message);
     }
-
-    console.log(`\nSincronização concluída! ${inseridos} novos candidatos de 2026 adicionados.`);
-    process.exit(0);
-
-  } catch (erro) {
-    console.error("❌ Falha ao importar dados do TSE:", erro.message);
-    process.exit(1);
   }
+
+  console.log(`🎉 Sincronização finalizada! ${totalInseridos} novos registros no total.`);
+  process.exit(0);
 }
 
 importarCandidatosDoTSE();
