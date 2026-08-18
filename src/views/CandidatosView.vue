@@ -14,6 +14,17 @@ const busca = ref('')
 const partidoSelecionado = ref('')
 const candidatos = ref([])
 
+// Variáveis para controlar os Modais
+const modalAberto = ref(false)
+const tipoModal = ref('') // 'bens' ou 'eleicoes'
+const candidatoAtivo = ref({})
+
+const abrirModal = (candidato, tipo) => {
+  candidatoAtivo.value = candidato
+  tipoModal.value = tipo
+  modalAberto.value = true
+}
+
 // Dicionário para o título
 const CARGOS = {
   1: "Presidente", 2: "Vice-Presidente", 3: "Governador", 4: "Vice-Governador",
@@ -32,7 +43,6 @@ const tituloPagina = computed(() => {
 })
 
 onMounted(async () => {
-  // Passamos os filtros da URL para buscar apenas o que foi selecionado na Home
   candidatos.value = await buscarCandidatos(ufUrl, cargoUrl)
   carregando.value = false
 })
@@ -63,7 +73,7 @@ const formatarMoeda = (valor) => {
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
         <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ tituloPagina }}</h1>
-        <p class="text-slate-500 text-sm mt-1">Explore os perfis, patrimônio declarado e prestação de contas.</p>
+        <p class="text-slate-500 text-sm mt-1">Explore os perfis, patrimônio declarado e limites de gastos.</p>
       </div>
 
       <div class="flex flex-col sm:flex-row gap-3">
@@ -110,26 +120,41 @@ const formatarMoeda = (valor) => {
             </div>
           </div>
 
+          <!-- Limites de Gastos -->
           <div class="mt-6 grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
             <div class="bg-slate-50 p-3 rounded-xl">
-              <span class="text-xs text-slate-500 block font-medium">Arrecadado</span>
-              <span class="text-sm font-bold text-emerald-600 block truncate">{{ formatarMoeda(candidato.totalReceitas) }}</span>
+              <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-bold mb-0.5">Limite 1º Turno</span>
+              <span class="text-sm font-bold text-slate-700 block truncate" :title="formatarMoeda(candidato.limiteGastos1T)">
+                {{ formatarMoeda(candidato.limiteGastos1T) }}
+              </span>
             </div>
             <div class="bg-slate-50 p-3 rounded-xl">
-              <span class="text-xs text-slate-500 block font-medium">Despesas</span>
-              <span class="text-sm font-bold text-rose-600 block truncate">{{ formatarMoeda(candidato.totalDespesas) }}</span>
+              <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-bold mb-0.5">Limite 2º Turno</span>
+              <span class="text-sm font-bold text-slate-700 block truncate" :title="formatarMoeda(candidato.limiteGastos2T)">
+                {{ candidato.limiteGastos2T > 0 ? formatarMoeda(candidato.limiteGastos2T) : 'Não se aplica' }}
+              </span>
             </div>
           </div>
 
           <div class="mt-3 bg-slate-50 p-3 rounded-xl flex justify-between items-center">
-            <span class="text-xs text-slate-500 font-medium">Bens Declarados</span>
+            <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">Bens Declarados</span>
             <span class="text-sm font-bold text-slate-800">{{ formatarMoeda(candidato.totalBens) }}</span>
           </div>
         </div>
 
-        <div class="bg-slate-50 px-6 py-3 border-t border-slate-100">
-          <button class="w-full text-center py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl transition-colors">
-            Ver Prestação de Contas
+        <!-- Botões de Ação do Card -->
+        <div class="bg-slate-50 px-6 py-3 border-t border-slate-100 flex gap-2">
+          <button
+            @click="abrirModal(candidato, 'bens')"
+            class="flex-1 text-center py-2 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-sm"
+          >
+            Bens do Candidato
+          </button>
+          <button
+            @click="abrirModal(candidato, 'eleicoes')"
+            class="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm"
+          >
+            Eleições
           </button>
         </div>
       </div>
@@ -139,4 +164,71 @@ const formatarMoeda = (valor) => {
       <p class="text-slate-500 text-base">Nenhum candidato encontrado com os critérios selecionados.</p>
     </div>
   </div>
+
+  <!-- MODAL FLUTUANTE COM NOME DO CANDIDATO NO TOPO -->
+  <div v-if="modalAberto" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in">
+
+      <!-- Cabeçalho do Modal atualizado com o Nome do Candidato -->
+      <div class="p-5 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-blue-600 block">
+            {{ tipoModal === 'bens' ? 'Bens do Candidato' : 'Histórico de Eleições' }}
+          </span>
+          <h3 class="text-xl font-extrabold text-slate-900 mt-0.5">
+            {{ candidatoAtivo.nomeUrna || candidatoAtivo.nome }}
+          </h3>
+        </div>
+        <button @click="modalAberto = false" class="text-slate-400 hover:text-slate-600 text-2xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <!-- Conteúdo dos Bens -->
+        <div v-if="tipoModal === 'bens'">
+          <div class="p-4 bg-emerald-50 rounded-xl mb-4 border border-emerald-100 flex justify-between items-center">
+            <span class="text-xs uppercase tracking-wider text-emerald-800 font-bold">Total em Bens</span>
+            <span class="text-base text-emerald-900 font-extrabold">{{ formatarMoeda(candidatoAtivo.totalBens) }}</span>
+          </div>
+
+          <div v-if="candidatoAtivo.bens && candidatoAtivo.bens.length > 0">
+            <div v-for="(bem, i) in candidatoAtivo.bens" :key="i" class="border-b border-slate-100 pb-3 mb-3 last:border-0">
+              <p class="text-xs font-bold uppercase text-slate-400">{{ bem.tipo }}</p>
+              <p class="text-sm font-semibold text-slate-800 mt-0.5">{{ bem.descricao }}</p>
+              <p class="text-sm font-bold text-slate-900 mt-1">{{ formatarMoeda(bem.valor) }}</p>
+            </div>
+          </div>
+          <div v-else class="text-center py-6 text-slate-400 text-sm">
+            Nenhum detalhe de bem cadastrado para este candidato.
+          </div>
+        </div>
+
+        <!-- Conteúdo das Eleições -->
+        <div v-if="tipoModal === 'eleicoes'">
+          <div v-if="candidatoAtivo.eleicoesAnteriores && candidatoAtivo.eleicoesAnteriores.length > 0">
+            <div v-for="(eleicao, i) in candidatoAtivo.eleicoesAnteriores" :key="i" class="p-4 border border-slate-200 rounded-xl mb-3 bg-slate-50">
+              <p class="text-sm font-bold text-slate-900 leading-snug">
+                {{ candidatoAtivo.nomeUrna }} número {{ eleicao.numero || candidatoAtivo.numero }} candidato a {{ eleicao.cargo || candidatoAtivo.cargo }}
+              </p>
+              <p class="text-xs text-slate-500 mt-1">
+                Partido {{ eleicao.partido || candidatoAtivo.partido }} em {{ eleicao.ano || 2026 }}
+              </p>
+            </div>
+          </div>
+          <div v-else class="text-center py-6 text-slate-400 text-sm">
+            Nenhum histórico anterior registrado.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+</style>

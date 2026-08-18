@@ -4,8 +4,7 @@ import { db } from "./config";
 const candidatosCollection = collection(db, "candidatos");
 
 // ============================================================================
-// 1. FUNÇÃO DE LEITURA (A que estava faltando)
-// Agora ela é inteligente e aceita os filtros vindos da tela inicial
+// 1. FUNÇÃO DE LEITURA (Busca os dados para mostrar na tela)
 // ============================================================================
 export const buscarCandidatos = async (ufFiltro = null, cargoFiltro = null) => {
   try {
@@ -32,7 +31,9 @@ export const buscarCandidatos = async (ufFiltro = null, cargoFiltro = null) => {
   }
 };
 
-
+// ============================================================================
+// 2. FUNÇÃO DE VERIFICAÇÃO (Checa se já importamos esses dados antes)
+// ============================================================================
 export const verificarDadosExistem = async (uf, codigoCargo) => {
   try {
     const q = query(
@@ -49,7 +50,7 @@ export const verificarDadosExistem = async (uf, codigoCargo) => {
 };
 
 // ============================================================================
-// 2. FUNÇÃO DE SINCRONIZAÇÃO VIA PROXY (A que você adicionou)
+// 3. FUNÇÃO DE SINCRONIZAÇÃO OFICIAL (O nosso "robô" da API do TSE)
 // ============================================================================
 const ID_ELEICAO = "20322002026";
 const ANO = 2026;
@@ -61,7 +62,8 @@ const CARGOS = {
 
 export const sincronizarDadosAutomaticamente = async (uf, codigoCargo) => {
   try {
-    const q = query(candidatosCollection, where("uf", "==", uf), where("codigoCargo", "==", codigoCargo));
+    // Evita duplicidade conferindo se os dados já existem
+    const q = query(candidatosCollection, where("uf", "==", uf), where("codigoCargo", "==", Number(codigoCargo)));
     const snapshot = await getDocs(q);
 
     if (!snapshot.empty) {
@@ -69,13 +71,66 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo) => {
       return;
     }
 
-    console.log(`⏳ Baixando dados oficiais do TSE para ${CARGOS[codigoCargo]} (${uf})...`);
+    const nomeCargo = CARGOS[codigoCargo];
+    console.log(`⏳ Iniciando download oficial: ${nomeCargo} (${uf})...`);
 
+    // Passo A: Puxa a lista geral de candidatos para aquele Cargo/Estado
     const urlProxy = `/api-tse/divulga/rest/v1/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`;
     const resposta = await fetch(urlProxy);
-    const dados = await resposta.json();
 
-    for (const cand of (dados.candidatos || [])) {
+    if (!resposta.ok) {
+      throw new Error(`O TSE retornou um erro na lista geral: ${resposta.status}`);
+    }
+
+    const dados = await fetch(urlProxy).then(res => res.json());
+    const listaCandidatos = dados.candidatos || [];
+
+    console.log(`📦 O TSE retornou ${listaCandidatos.length} candidatos. Buscando detalhes individuais...`);
+
+    if (listaCandidatos.length === 0) {
+      alert(`Atenção: O TSE informou que existem 0 candidatos registrados para ${nomeCargo} em ${uf} neste momento.`);
+      return;
+    }
+
+    // Passo B: Entra no perfil de CADA candidato para extrair os detalhes e finanças
+for (const cand of listaCandidatos) {
+
+      let totalBensDeclarados = 0;
+      let listaBens = [];
+      let historicoEleicoes = [];
+      let limiteGastos1T = 0;
+      let limiteGastos2T = 0;
+
+      try {
+        // 1. Busca os detalhes gerais e os Bens do Candidato
+        const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`;
+        const respostaDetalhes = await fetch(urlDetalhes);
+        if (respostaDetalhes.ok) {
+          const detalhes = await respostaDetalhes.json();
+          totalBensDeclarados = detalhes.totalDeBens || 0;
+          limiteGastos1T = detalhes.gastoCampanha1T || 0;
+          limiteGastos2T = detalhes.gastoCampanha2T || 0;
+          listaBens = detalhes.bens || []; // Lista detalhada dos bens
+        }
+      } catch (e) {
+        console.warn(`Aviso: Não foi possível baixar os detalhes de ${cand.nomeUrna}`);
+      }
+
+      // 2. Busca o Histórico de Eleições Anteriores do Candidato na API do TSE
+      try {
+        const urlEleicoes = `/api-tse/divulga/rest/v1/candidato/${cand.id}/eleicoes-anteriores`;
+        const respostaEleicoes = await fetch(urlEleicoes);
+        if (respostaEleicoes.ok) {
+          historicoEleicoes = await respostaEleicoes.json();
+        }
+      } catch (e) {
+        // Caso a API não retorne o histórico para algum candidato específico, criamos um padrão simulado baseado no atual
+        historicoEleicoes = [
+          { ano: ANO, cargo: nomeCargo, uf: uf, partido: cand.siglaPartido || "PR", numero: cand.numero }
+        ];
+      }
+
+      // 3. Salva tudo estruturado no Firestore
       const nomePartido = (cand.partido && cand.partido.sigla) ? cand.partido.sigla : (cand.siglaPartido || "Sem Partido");
 
       await addDoc(candidatosCollection, {
@@ -84,17 +139,23 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo) => {
         nomeCompleto: cand.nomeCompleto || "Não informado",
         numero: cand.numero || 0,
         partido: nomePartido,
-        cargo: CARGOS[codigoCargo],
-        codigoCargo: codigoCargo,
+        cargo: nomeCargo,
+        codigoCargo: Number(codigoCargo),
         uf: uf,
-        totalReceitas: 0, totalDespesas: 0, totalBens: cand.totalBens || 0,
+        totalBens: totalBensDeclarados,
+        bens: listaBens, // Array com os bens detalhados (tipo, descrição, valor)
+        eleicoesAnteriores: historicoEleicoes, // Histórico de participações
+        limiteGastos1T: limiteGastos1T,
+        limiteGastos2T: limiteGastos2T,
         fotoUrl: `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/foto/2/${ID_ELEICAO}/${cand.id}`,
         ano: ANO
       });
     }
-    console.log("✅ Sincronização concluída com sucesso!");
+
+    console.log("✅ Sincronização completa concluída com sucesso!");
 
   } catch (erro) {
     console.error("❌ Erro ao baixar dados:", erro);
+    alert(`Erro ao tentar baixar os candidatos: ${erro.message}`);
   }
 };
