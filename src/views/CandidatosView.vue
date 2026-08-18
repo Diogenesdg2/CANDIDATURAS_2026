@@ -106,10 +106,11 @@ const formatarMoeda = (valor) => {
       >
         <div class="p-6">
           <div class="flex items-center space-x-4">
-            <img
+         <img
               :src="candidato.fotoUrl || 'https://via.placeholder.com/150'"
               :alt="candidato.nomeUrna || candidato.nome"
-              class="w-16 h-16 rounded-full object-cover border-2 border-slate-100 shadow-sm"
+              class="w-16 h-16 rounded-full object-cover border-2 border-slate-100 shadow-sm bg-slate-100"
+              @error="(e) => e.target.src = 'https://via.placeholder.com/150'"
             />
             <div>
               <span class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full mb-1">

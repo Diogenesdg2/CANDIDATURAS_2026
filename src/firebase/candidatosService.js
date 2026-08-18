@@ -50,7 +50,7 @@ export const verificarDadosExistem = async (uf, codigoCargo) => {
 };
 
 // ============================================================================
-// 3. FUNÇÃO DE SINCRONIZAÇÃO OFICIAL (O nosso "robô" da API do TSE)
+// 3. FUNÇÃO DE SINCRONIZAÇÃO OFICIAL (O robô da API do TSE)
 // ============================================================================
 const ID_ELEICAO = "20322002026";
 const ANO = 2026;
@@ -82,7 +82,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo) => {
       throw new Error(`O TSE retornou um erro na lista geral: ${resposta.status}`);
     }
 
-    const dados = await fetch(urlProxy).then(res => res.json());
+    const dados = await resposta.json();
     const listaCandidatos = dados.candidatos || [];
 
     console.log(`📦 O TSE retornou ${listaCandidatos.length} candidatos. Buscando detalhes individuais...`);
@@ -92,8 +92,8 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo) => {
       return;
     }
 
-    // Passo B: Entra no perfil de CADA candidato para extrair os detalhes e finanças
-for (const cand of listaCandidatos) {
+    // Passo B: Entra no perfil de CADA candidato para extrair os detalhes, bens, histórico e foto oficial
+    for (const cand of listaCandidatos) {
 
       let totalBensDeclarados = 0;
       let listaBens = [];
@@ -101,8 +101,8 @@ for (const cand of listaCandidatos) {
       let limiteGastos1T = 0;
       let limiteGastos2T = 0;
 
+      // 1. Busca os detalhes gerais do candidato (Bens e Limite de Gastos)
       try {
-        // 1. Busca os detalhes gerais e os Bens do Candidato
         const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`;
         const respostaDetalhes = await fetch(urlDetalhes);
         if (respostaDetalhes.ok) {
@@ -110,13 +110,13 @@ for (const cand of listaCandidatos) {
           totalBensDeclarados = detalhes.totalDeBens || 0;
           limiteGastos1T = detalhes.gastoCampanha1T || 0;
           limiteGastos2T = detalhes.gastoCampanha2T || 0;
-          listaBens = detalhes.bens || []; // Lista detalhada dos bens
+          listaBens = detalhes.bens || [];
         }
       } catch (e) {
         console.warn(`Aviso: Não foi possível baixar os detalhes de ${cand.nomeUrna}`);
       }
 
-      // 2. Busca o Histórico de Eleições Anteriores do Candidato na API do TSE
+      // 2. Busca o Histórico de Eleições Anteriores
       try {
         const urlEleicoes = `/api-tse/divulga/rest/v1/candidato/${cand.id}/eleicoes-anteriores`;
         const respostaEleicoes = await fetch(urlEleicoes);
@@ -124,13 +124,15 @@ for (const cand of listaCandidatos) {
           historicoEleicoes = await respostaEleicoes.json();
         }
       } catch (e) {
-        // Caso a API não retorne o histórico para algum candidato específico, criamos um padrão simulado baseado no atual
         historicoEleicoes = [
           { ano: ANO, cargo: nomeCargo, uf: uf, partido: cand.siglaPartido || "PR", numero: cand.numero }
         ];
       }
 
-      // 3. Salva tudo estruturado no Firestore
+      // 3. Monta a URL oficial da foto no padrão estático do TSE
+      const fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO}/${cand.id}/${uf}`;
+
+      // 4. Salva tudo estruturado no Firestore
       const nomePartido = (cand.partido && cand.partido.sigla) ? cand.partido.sigla : (cand.siglaPartido || "Sem Partido");
 
       await addDoc(candidatosCollection, {
@@ -143,11 +145,11 @@ for (const cand of listaCandidatos) {
         codigoCargo: Number(codigoCargo),
         uf: uf,
         totalBens: totalBensDeclarados,
-        bens: listaBens, // Array com os bens detalhados (tipo, descrição, valor)
-        eleicoesAnteriores: historicoEleicoes, // Histórico de participações
+        bens: listaBens,
+        eleicoesAnteriores: historicoEleicoes,
         limiteGastos1T: limiteGastos1T,
         limiteGastos2T: limiteGastos2T,
-        fotoUrl: `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/foto/2/${ID_ELEICAO}/${cand.id}`,
+        fotoUrl: fotoOficialUrl,
         ano: ANO
       });
     }
