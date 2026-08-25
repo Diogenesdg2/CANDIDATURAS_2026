@@ -1,11 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { buscarCandidatos } from '../firebase/candidatosService'
+import { buscarCandidatos, atualizarStatusCandidato } from '../firebase/candidatosService'
 
 const route = useRoute()
-
-// Lemos os filtros que a Home enviou na URL
 const ufUrl = route.query.uf || ''
 const cargoUrl = route.query.cargo || ''
 
@@ -14,9 +12,13 @@ const busca = ref('')
 const partidoSelecionado = ref('')
 const candidatos = ref([])
 
-// Variáveis para controlar os Modais
+// Controle de atualização individual e global
+const atualizandoId = ref(null)
+const atualizandoTodos = ref(false)
+const progressoGlobal = ref({ atual: 0, total: 0 })
+
 const modalAberto = ref(false)
-const tipoModal = ref('') // 'bens' ou 'eleicoes'
+const tipoModal = ref('')
 const candidatoAtivo = ref({})
 
 const abrirModal = (candidato, tipo) => {
@@ -25,7 +27,6 @@ const abrirModal = (candidato, tipo) => {
   modalAberto.value = true
 }
 
-// Dicionário para o título
 const CARGOS = {
   1: 'Presidente',
   2: 'Vice-Presidente',
@@ -39,7 +40,6 @@ const CARGOS = {
   10: '2º Suplente',
 }
 
-// Computa o título dinâmico
 const tituloPagina = computed(() => {
   if (cargoUrl && ufUrl) {
     const nomeCargo = CARGOS[cargoUrl] || 'Candidatos'
@@ -50,7 +50,6 @@ const tituloPagina = computed(() => {
 })
 
 onMounted(async () => {
-  // Como os dados já vieram salvos pela Home, aqui apenas lemos do Firestore instantaneamente
   candidatos.value = await buscarCandidatos(ufUrl, cargoUrl)
   carregando.value = false
 })
@@ -74,6 +73,62 @@ const candidatosFiltrados = computed(() => {
 const formatarMoeda = (valor) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0)
 }
+
+// Verifica status de UM candidato
+const verificarStatusEmTempoReal = async (candidato) => {
+  if (atualizandoTodos.value) return // Evita conflito se a global estiver rodando
+
+  atualizandoId.value = candidato.id
+  try {
+    const novosStatus = await atualizarStatusCandidato(candidato.id, candidato.idTse, candidato.uf)
+    candidato.situacaoCandidatura = novosStatus.situacaoCandidatura
+    candidato.situacaoPartido = novosStatus.situacaoPartido
+  } catch (error) {
+    alert('Não foi possível verificar no TSE no momento.')
+  } finally {
+    atualizandoId.value = null
+  }
+}
+
+// Verifica status de TODOS os candidatos da tela (Em fila)
+const atualizarTodosStatus = async () => {
+  const lista = candidatosFiltrados.value
+  if (lista.length === 0) return
+
+  atualizandoTodos.value = true
+  progressoGlobal.value = { atual: 0, total: lista.length }
+
+  for (const candidato of lista) {
+    atualizandoId.value = candidato.id // Faz o botão do card girar
+    try {
+      const novosStatus = await atualizarStatusCandidato(
+        candidato.id,
+        candidato.idTse,
+        candidato.uf,
+      )
+      candidato.situacaoCandidatura = novosStatus.situacaoCandidatura
+      candidato.situacaoPartido = novosStatus.situacaoPartido
+    } catch (error) {
+      console.warn(`Falha ao atualizar ${candidato.nomeUrna}`)
+    }
+    progressoGlobal.value.atual++
+  }
+
+  atualizandoId.value = null
+  atualizandoTodos.value = false
+}
+
+// Função para checar se o candidato está inelegível (O TSE usa várias nomenclaturas)
+const isInelegivel = (situacao) => {
+  if (!situacao) return false
+  const sitUpper = situacao.toUpperCase()
+  return (
+    sitUpper.includes('INDEFERIDO') ||
+    sitUpper.includes('CASSADO') ||
+    sitUpper.includes('CANCELADO') ||
+    sitUpper.includes('INELEGÍVEL')
+  )
+}
 </script>
 
 <template>
@@ -89,25 +144,79 @@ const formatarMoeda = (valor) => {
         </p>
       </div>
 
-      <div class="flex flex-col sm:flex-row gap-3">
-        <input
-          v-model="busca"
-          type="text"
-          placeholder="Buscar candidato..."
-          class="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-        />
-
-        <select
-          v-model="partidoSelecionado"
-          class="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-slate-700"
+      <!-- Área Superior (Filtros e Botão Global) -->
+      <div class="flex flex-col xl:flex-row gap-3 items-stretch xl:items-center">
+        <!-- BOTÃO DE ATUALIZAÇÃO GLOBAL -->
+        <button
+          v-if="candidatosFiltrados.length > 0"
+          @click="atualizarTodosStatus"
+          :disabled="atualizandoTodos"
+          class="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2"
         >
-          <option value="">Todos os partidos</option>
-          <option v-for="partido in partidos" :key="partido" :value="partido">{{ partido }}</option>
-        </select>
+          <svg
+            v-if="atualizandoTodos"
+            class="animate-spin h-4 w-4 text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          <svg
+            v-else
+            class="h-4 w-4 text-white"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            ></path>
+          </svg>
+          {{
+            atualizandoTodos
+              ? `Atualizando ${progressoGlobal.atual}/${progressoGlobal.total}...`
+              : 'Checar Status de Todos'
+          }}
+        </button>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input
+            v-model="busca"
+            type="text"
+            placeholder="Buscar candidato..."
+            class="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm w-full sm:w-auto"
+          />
+
+          <select
+            v-model="partidoSelecionado"
+            class="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-slate-700 w-full sm:w-auto"
+          >
+            <option value="">Todos os partidos</option>
+            <option v-for="partido in partidos" :key="partido" :value="partido">
+              {{ partido }}
+            </option>
+          </select>
+        </div>
       </div>
     </div>
 
-    <!-- TELA DE CARREGAMENTO SIMPLES -->
     <div v-if="carregando" class="text-center py-20 bg-white rounded-2xl border border-slate-200">
       <div
         class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
@@ -115,7 +224,6 @@ const formatarMoeda = (valor) => {
       <p class="text-slate-500 font-medium text-sm">Carregando candidatos do banco de dados...</p>
     </div>
 
-    <!-- LISTAGEM DE CARDS -->
     <div
       v-else-if="candidatosFiltrados.length > 0"
       class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -123,12 +231,24 @@ const formatarMoeda = (valor) => {
       <div
         v-for="candidato in candidatosFiltrados"
         :key="candidato.id"
-        class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col justify-between"
+        class="relative bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col justify-between"
       >
+        <!-- CARIMBO DE INELEGIBILIDADE -->
+        <div
+          v-if="isInelegivel(candidato.situacaoCandidatura)"
+          class="absolute inset-0 z-20 pointer-events-none flex items-center justify-center overflow-hidden"
+        >
+          <div
+            class="transform -rotate-45 border-4 border-red-600 text-red-600 font-black text-3xl py-2 px-6 rounded-lg shadow-2xl bg-white/90 backdrop-blur-sm opacity-95 tracking-widest uppercase shadow-red-500/20"
+          >
+            INELEGÍVEL
+          </div>
+        </div>
+
         <div class="p-6">
-          <!-- Foto Retangular Estilo TSE -->
           <div
             class="relative mb-4 flex justify-center bg-slate-50 py-4 rounded-xl border border-slate-100"
+            :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
             <img
               :src="candidato.fotoUrl"
@@ -144,7 +264,10 @@ const formatarMoeda = (valor) => {
             />
           </div>
 
-          <div class="flex items-center space-x-4 mb-4">
+          <div
+            class="flex items-center space-x-4 mb-4"
+            :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+          >
             <div>
               <span
                 class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full mb-1"
@@ -158,24 +281,80 @@ const formatarMoeda = (valor) => {
             </div>
           </div>
 
-          <!-- Situações do TSE (Cor Azulada/Esverdeada padrão) -->
+          <!-- Situações do TSE e Botão de Sincronização -->
           <div class="space-y-2 mb-6">
-            <div class="bg-[#1f6d6d] p-3 rounded-sm text-white">
+            <div
+              class="p-3 rounded-sm text-white transition-colors duration-300"
+              :class="[
+                atualizandoId === candidato.id ? 'opacity-70' : '',
+                isInelegivel(candidato.situacaoCandidatura) ? 'bg-red-700' : 'bg-[#1f6d6d]',
+              ]"
+            >
               <p class="text-sm font-bold truncate">
                 {{ candidato.situacaoCandidatura || 'Não informado' }}
               </p>
               <p class="text-[10px] uppercase opacity-90">Situação Candidatura</p>
             </div>
-            <div class="bg-[#1f6d6d] p-3 rounded-sm text-white">
+            <div
+              class="bg-[#1f6d6d] p-3 rounded-sm text-white transition-colors duration-300"
+              :class="{ 'opacity-70': atualizandoId === candidato.id }"
+            >
               <p class="text-sm font-bold truncate">
                 {{ candidato.situacaoPartido || 'Não informado' }}
               </p>
               <p class="text-[10px] uppercase opacity-90">Situação Partido/Federação/Coligação</p>
             </div>
+
+            <button
+              @click="verificarStatusEmTempoReal(candidato)"
+              :disabled="atualizandoId === candidato.id || atualizandoTodos"
+              class="w-full flex items-center justify-center gap-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-sm transition-all disabled:opacity-50 mt-1"
+            >
+              <svg
+                v-if="atualizandoId === candidato.id"
+                class="animate-spin h-3.5 w-3.5 text-slate-700"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <svg
+                v-else
+                class="h-3.5 w-3.5 text-slate-700"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                ></path>
+              </svg>
+              {{ atualizandoId === candidato.id ? 'Consultando TSE...' : 'Atualizar Situação' }}
+            </button>
           </div>
 
-          <!-- Limites de Gastos -->
-          <div class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+          <!-- Restante do Card -->
+          <div
+            class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100"
+            :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+          >
             <div class="bg-slate-50 p-3 rounded-xl">
               <span
                 class="text-[10px] uppercase tracking-wider text-slate-500 block font-bold mb-0.5"
@@ -206,7 +385,10 @@ const formatarMoeda = (valor) => {
             </div>
           </div>
 
-          <div class="mt-3 bg-slate-50 p-3 rounded-xl flex justify-between items-center">
+          <div
+            class="mt-3 bg-slate-50 p-3 rounded-xl flex justify-between items-center"
+            :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+          >
             <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-0.5"
               >Bens Declarados</span
             >
@@ -216,17 +398,19 @@ const formatarMoeda = (valor) => {
           </div>
         </div>
 
-        <!-- Botões de Ação do Card -->
-        <div class="bg-slate-50 px-6 py-3 border-t border-slate-100 flex gap-2">
+        <div
+          class="bg-slate-50 px-6 py-3 border-t border-slate-100 flex gap-2"
+          :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+        >
           <button
             @click="abrirModal(candidato, 'bens')"
-            class="flex-1 text-center py-2 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-sm"
+            class="flex-1 text-center py-2 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
           >
-            Bens do Candidato
+            Bens
           </button>
           <button
             @click="abrirModal(candidato, 'eleicoes')"
-            class="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm"
+            class="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
           >
             Eleições
           </button>
@@ -241,7 +425,7 @@ const formatarMoeda = (valor) => {
     </div>
   </div>
 
-  <!-- MODAL FLUTUANTE (BENS E ELEIÇÕES) -->
+  <!-- MODAL FLUTUANTE (Mantido) -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -269,7 +453,7 @@ const formatarMoeda = (valor) => {
       </div>
 
       <div class="p-6 space-y-4">
-        <!-- Conteúdo dos Bens -->
+        <!-- ... Mesmos conteúdos de bens e eleições de antes ... -->
         <div v-if="tipoModal === 'bens'">
           <div
             class="p-4 bg-emerald-50 rounded-xl mb-4 border border-emerald-100 flex justify-between items-center"
@@ -294,11 +478,10 @@ const formatarMoeda = (valor) => {
             </div>
           </div>
           <div v-else class="text-center py-6 text-slate-400 text-sm">
-            Nenhum detalhe de bem cadastrado para este candidato.
+            Nenhum detalhe de bem cadastrado.
           </div>
         </div>
 
-        <!-- Conteúdo das Eleições -->
         <div v-if="tipoModal === 'eleicoes'">
           <div
             v-if="candidatoAtivo.eleicoesAnteriores && candidatoAtivo.eleicoesAnteriores.length > 0"

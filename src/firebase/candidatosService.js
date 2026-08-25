@@ -1,4 +1,4 @@
-import { collection, getDocs, addDoc, query, where } from 'firebase/firestore'
+import { collection, getDocs, addDoc, query, where, doc, updateDoc } from 'firebase/firestore'
 import { db } from './config'
 
 const candidatosCollection = collection(db, 'candidatos')
@@ -176,5 +176,35 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
   } catch (erro) {
     console.error('❌ Erro ao baixar dados:', erro)
     throw erro
+  }
+}
+
+// ============================================================================
+// 4. FUNÇÃO DE ATUALIZAÇÃO EM TEMPO REAL (Checa o status atual no TSE)
+// ============================================================================
+export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) => {
+  try {
+    const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`
+    const respostaDetalhes = await fetch(urlDetalhes)
+
+    if (!respostaDetalhes.ok) {
+      throw new Error('Falha ao comunicar com o TSE')
+    }
+
+    const detalhes = await respostaDetalhes.json()
+    const novaSitCand = detalhes.descricaoSituacao || 'Não informado'
+    const novaSitPart = detalhes.candidato?.situacaoCandidato || 'Não informado'
+
+    // Atualiza o documento específico no Firestore
+    const docRef = doc(db, 'candidatos', candidatoFirebaseId)
+    await updateDoc(docRef, {
+      situacaoCandidatura: novaSitCand,
+      situacaoPartido: novaSitPart,
+    })
+
+    return { situacaoCandidatura: novaSitCand, situacaoPartido: novaSitPart }
+  } catch (error) {
+    console.error('Erro ao atualizar status:', error)
+    throw error
   }
 }
