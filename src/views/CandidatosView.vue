@@ -76,7 +76,7 @@ const formatarMoeda = (valor) => {
 
 // Verifica status de UM candidato
 const verificarStatusEmTempoReal = async (candidato) => {
-  if (atualizandoTodos.value) return // Evita conflito se a global estiver rodando
+  if (atualizandoTodos.value) return
 
   atualizandoId.value = candidato.id
   try {
@@ -99,7 +99,7 @@ const atualizarTodosStatus = async () => {
   progressoGlobal.value = { atual: 0, total: lista.length }
 
   for (const candidato of lista) {
-    atualizandoId.value = candidato.id // Faz o botão do card girar
+    atualizandoId.value = candidato.id
     try {
       const novosStatus = await atualizarStatusCandidato(
         candidato.id,
@@ -118,7 +118,31 @@ const atualizarTodosStatus = async () => {
   atualizandoTodos.value = false
 }
 
-// Função para checar se o candidato está inelegível (O TSE usa várias nomenclaturas)
+// Lógica de cores das caixinhas de situação
+const getCorSituacao = (situacao) => {
+  if (!situacao) return 'bg-[#1f6d6d]'
+  const sitUpper = situacao.toUpperCase()
+
+  // 1. Prioridade para os status negativos (Vermelho)
+  if (
+    sitUpper.includes('INDEFERIDO') ||
+    sitUpper.includes('CASSADO') ||
+    sitUpper.includes('CANCELADO') ||
+    sitUpper.includes('INELEGÍVEL')
+  ) {
+    return 'bg-red-600'
+  }
+
+  // 2. Depois verificamos os positivos (Azul).
+  if (sitUpper.includes('DEFERIDO')) {
+    return 'bg-blue-600'
+  }
+
+  // 3. Status padrão do TSE
+  return 'bg-[#1f6d6d]'
+}
+
+// Verifica se precisa mostrar o efeito grayscale na foto
 const isInelegivel = (situacao) => {
   if (!situacao) return false
   const sitUpper = situacao.toUpperCase()
@@ -144,7 +168,6 @@ const isInelegivel = (situacao) => {
         </p>
       </div>
 
-      <!-- Área Superior (Filtros e Botão Global) -->
       <div class="flex flex-col xl:flex-row gap-3 items-stretch xl:items-center">
         <!-- BOTÃO DE ATUALIZAÇÃO GLOBAL -->
         <button
@@ -233,18 +256,6 @@ const isInelegivel = (situacao) => {
         :key="candidato.id"
         class="relative bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col justify-between"
       >
-        <!-- CARIMBO DE INELEGIBILIDADE -->
-        <div
-          v-if="isInelegivel(candidato.situacaoCandidatura)"
-          class="absolute inset-0 z-20 pointer-events-none flex items-center justify-center overflow-hidden"
-        >
-          <div
-            class="transform -rotate-45 border-4 border-red-600 text-red-600 font-black text-3xl py-2 px-6 rounded-lg shadow-2xl bg-white/90 backdrop-blur-sm opacity-95 tracking-widest uppercase shadow-red-500/20"
-          >
-            INELEGÍVEL
-          </div>
-        </div>
-
         <div class="p-6">
           <div
             class="relative mb-4 flex justify-center bg-slate-50 py-4 rounded-xl border border-slate-100"
@@ -281,13 +292,13 @@ const isInelegivel = (situacao) => {
             </div>
           </div>
 
-          <!-- Situações do TSE e Botão de Sincronização -->
+          <!-- Situações do TSE dinâmicas e coloridas -->
           <div class="space-y-2 mb-6">
             <div
               class="p-3 rounded-sm text-white transition-colors duration-300"
               :class="[
                 atualizandoId === candidato.id ? 'opacity-70' : '',
-                isInelegivel(candidato.situacaoCandidatura) ? 'bg-red-700' : 'bg-[#1f6d6d]',
+                getCorSituacao(candidato.situacaoCandidatura),
               ]"
             >
               <p class="text-sm font-bold truncate">
@@ -295,9 +306,13 @@ const isInelegivel = (situacao) => {
               </p>
               <p class="text-[10px] uppercase opacity-90">Situação Candidatura</p>
             </div>
+
             <div
-              class="bg-[#1f6d6d] p-3 rounded-sm text-white transition-colors duration-300"
-              :class="{ 'opacity-70': atualizandoId === candidato.id }"
+              class="p-3 rounded-sm text-white transition-colors duration-300"
+              :class="[
+                atualizandoId === candidato.id ? 'opacity-70' : '',
+                getCorSituacao(candidato.situacaoPartido),
+              ]"
             >
               <p class="text-sm font-bold truncate">
                 {{ candidato.situacaoPartido || 'Não informado' }}
@@ -425,7 +440,7 @@ const isInelegivel = (situacao) => {
     </div>
   </div>
 
-  <!-- MODAL FLUTUANTE (Mantido) -->
+  <!-- MODAL FLUTUANTE -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -453,7 +468,7 @@ const isInelegivel = (situacao) => {
       </div>
 
       <div class="p-6 space-y-4">
-        <!-- ... Mesmos conteúdos de bens e eleições de antes ... -->
+        <!-- Conteúdo dos Bens -->
         <div v-if="tipoModal === 'bens'">
           <div
             class="p-4 bg-emerald-50 rounded-xl mb-4 border border-emerald-100 flex justify-between items-center"
@@ -482,6 +497,7 @@ const isInelegivel = (situacao) => {
           </div>
         </div>
 
+        <!-- Conteúdo das Eleições -->
         <div v-if="tipoModal === 'eleicoes'">
           <div
             v-if="candidatoAtivo.eleicoesAnteriores && candidatoAtivo.eleicoesAnteriores.length > 0"
