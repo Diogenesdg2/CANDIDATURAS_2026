@@ -8,9 +8,10 @@ import {
 
 const router = useRouter()
 
-const regiaoSelecionada = ref('Sudeste')
-const ufSelecionada = ref('SP')
-const cargoSelecionado = ref(3)
+// 1. INICIANDO NO PADRÃO NACIONAL (BRASIL / PRESIDENTE)
+const regiaoSelecionada = ref('BR')
+const ufSelecionada = ref('BR')
+const cargoSelecionado = ref(1)
 
 const dadosExistemNoBanco = ref(false)
 const verificando = ref(true)
@@ -158,6 +159,7 @@ const avancarParaLista = () => {
 
 <template>
   <div class="space-y-8 max-w-5xl mx-auto pb-12">
+    <!-- CABEÇALHO COM AVISO DO TSE -->
     <div>
       <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">
         Explorador Eleitoral 2026
@@ -165,6 +167,35 @@ const avancarParaLista = () => {
       <p class="text-slate-500 text-sm mt-1">
         Selecione a região, o estado e o cargo que deseja analisar as contas e candidaturas.
       </p>
+
+      <!-- AVISO DE TRANSPARÊNCIA (API TSE) -->
+      <div
+        class="mt-5 bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3 shadow-sm"
+      >
+        <svg
+          class="w-6 h-6 text-blue-600 mt-0.5 flex-shrink-0"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          ></path>
+        </svg>
+        <div>
+          <p class="text-sm text-blue-900 font-bold tracking-wide">Fonte de Dados Oficial</p>
+          <p class="text-xs text-blue-800 mt-1 leading-relaxed">
+            Todas as informações, fotos, lista de bens e status apresentados neste explorador são
+            extraídos em tempo real e de forma automatizada do portal de dados abertos do
+            <strong>TSE (Tribunal Superior Eleitoral)</strong>, utilizando a API pública oficial
+            <i>divulgacandcontas.tse.jus.br</i>.
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- 1. ESCOLHA A REGIÃO -->
