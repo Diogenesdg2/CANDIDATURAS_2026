@@ -5,7 +5,7 @@ import { buscarCandidatos } from '../firebase/candidatosService'
 
 const route = useRoute()
 
-// Lemos o que a Home enviou na URL
+// Lemos os filtros que a Home enviou na URL
 const ufUrl = route.query.uf || ''
 const cargoUrl = route.query.cargo || ''
 
@@ -27,10 +27,17 @@ const abrirModal = (candidato, tipo) => {
 
 // Dicionário para o título
 const CARGOS = {
-  1: "Presidente", 2: "Vice-Presidente", 3: "Governador", 4: "Vice-Governador",
-  5: "Senador", 6: "Deputado Federal", 7: "Deputado Estadual", 8: "Deputado Distrital",
-  9: "1º Suplente", 10: "2º Suplente"
-};
+  1: 'Presidente',
+  2: 'Vice-Presidente',
+  3: 'Governador',
+  4: 'Vice-Governador',
+  5: 'Senador',
+  6: 'Deputado Federal',
+  7: 'Deputado Estadual',
+  8: 'Deputado Distrital',
+  9: '1º Suplente',
+  10: '2º Suplente',
+}
 
 // Computa o título dinâmico
 const tituloPagina = computed(() => {
@@ -43,16 +50,17 @@ const tituloPagina = computed(() => {
 })
 
 onMounted(async () => {
+  // Como os dados já vieram salvos pela Home, aqui apenas lemos do Firestore instantaneamente
   candidatos.value = await buscarCandidatos(ufUrl, cargoUrl)
   carregando.value = false
 })
 
 const partidos = computed(() => {
-  return [...new Set(candidatos.value.map(c => c.partido).filter(Boolean))]
+  return [...new Set(candidatos.value.map((c) => c.partido).filter(Boolean))]
 })
 
 const candidatosFiltrados = computed(() => {
-  return candidatos.value.filter(c => {
+  return candidatos.value.filter((c) => {
     const nome = (c.nomeUrna || c.nome || '').toLowerCase()
     const completo = (c.nomeCompleto || '').toLowerCase()
     const termo = busca.value.toLowerCase()
@@ -73,7 +81,12 @@ const formatarMoeda = (valor) => {
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
         <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ tituloPagina }}</h1>
-        <p class="text-slate-500 text-sm mt-1">Explore os perfis, patrimônio declarado e limites de gastos.</p>
+        <p class="text-slate-500 text-sm mt-1">
+          <span v-if="!carregando" class="font-semibold text-blue-600"
+            >{{ candidatos.length }} candidatos encontrados</span
+          >
+          <span v-else>Carregando registros...</span>
+        </p>
       </div>
 
       <div class="flex flex-col sm:flex-row gap-3">
@@ -94,52 +107,112 @@ const formatarMoeda = (valor) => {
       </div>
     </div>
 
-    <div v-if="carregando" class="text-center py-16 text-slate-500 font-medium">
-      Carregando candidatos do banco de dados...
+    <!-- TELA DE CARREGAMENTO SIMPLES -->
+    <div v-if="carregando" class="text-center py-20 bg-white rounded-2xl border border-slate-200">
+      <div
+        class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+      ></div>
+      <p class="text-slate-500 font-medium text-sm">Carregando candidatos do banco de dados...</p>
     </div>
 
-    <div v-else-if="candidatosFiltrados.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- LISTAGEM DE CARDS -->
+    <div
+      v-else-if="candidatosFiltrados.length > 0"
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+    >
       <div
         v-for="candidato in candidatosFiltrados"
         :key="candidato.id"
         class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col justify-between"
       >
         <div class="p-6">
-          <div class="flex items-center space-x-4">
-         <img
-              :src="candidato.fotoUrl || 'https://via.placeholder.com/150'"
-              :alt="candidato.nomeUrna || candidato.nome"
-              class="w-16 h-16 rounded-full object-cover border-2 border-slate-100 shadow-sm bg-slate-100"
-              @error="(e) => e.target.src = 'https://via.placeholder.com/150'"
+          <!-- Foto Retangular Estilo TSE -->
+          <div
+            class="relative mb-4 flex justify-center bg-slate-50 py-4 rounded-xl border border-slate-100"
+          >
+            <img
+              :src="candidato.fotoUrl"
+              :alt="candidato.nomeUrna"
+              class="w-32 h-40 object-cover border border-slate-300 shadow-sm"
+              @error="
+                (e) => {
+                  e.target.onerror = null
+                  e.target.src =
+                    'https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png'
+                }
+              "
             />
+          </div>
+
+          <div class="flex items-center space-x-4 mb-4">
             <div>
-              <span class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full mb-1">
+              <span
+                class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full mb-1"
+              >
                 Nº {{ candidato.numero }}
               </span>
-              <h2 class="text-lg font-bold text-slate-900 leading-tight">{{ candidato.nomeUrna || candidato.nome }}</h2>
+              <h2 class="text-lg font-bold text-slate-900 leading-tight">
+                {{ candidato.nomeUrna }}
+              </h2>
               <p class="text-xs text-slate-500">{{ candidato.partido }}</p>
             </div>
           </div>
 
+          <!-- Situações do TSE (Cor Azulada/Esverdeada padrão) -->
+          <div class="space-y-2 mb-6">
+            <div class="bg-[#1f6d6d] p-3 rounded-sm text-white">
+              <p class="text-sm font-bold truncate">
+                {{ candidato.situacaoCandidatura || 'Não informado' }}
+              </p>
+              <p class="text-[10px] uppercase opacity-90">Situação Candidatura</p>
+            </div>
+            <div class="bg-[#1f6d6d] p-3 rounded-sm text-white">
+              <p class="text-sm font-bold truncate">
+                {{ candidato.situacaoPartido || 'Não informado' }}
+              </p>
+              <p class="text-[10px] uppercase opacity-90">Situação Partido/Federação/Coligação</p>
+            </div>
+          </div>
+
           <!-- Limites de Gastos -->
-          <div class="mt-6 grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+          <div class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
             <div class="bg-slate-50 p-3 rounded-xl">
-              <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-bold mb-0.5">Limite 1º Turno</span>
-              <span class="text-sm font-bold text-slate-700 block truncate" :title="formatarMoeda(candidato.limiteGastos1T)">
+              <span
+                class="text-[10px] uppercase tracking-wider text-slate-500 block font-bold mb-0.5"
+                >Limite 1º Turno</span
+              >
+              <span
+                class="text-sm font-bold text-slate-700 block truncate"
+                :title="formatarMoeda(candidato.limiteGastos1T)"
+              >
                 {{ formatarMoeda(candidato.limiteGastos1T) }}
               </span>
             </div>
             <div class="bg-slate-50 p-3 rounded-xl">
-              <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-bold mb-0.5">Limite 2º Turno</span>
-              <span class="text-sm font-bold text-slate-700 block truncate" :title="formatarMoeda(candidato.limiteGastos2T)">
-                {{ candidato.limiteGastos2T > 0 ? formatarMoeda(candidato.limiteGastos2T) : 'Não se aplica' }}
+              <span
+                class="text-[10px] uppercase tracking-wider text-slate-500 block font-bold mb-0.5"
+                >Limite 2º Turno</span
+              >
+              <span
+                class="text-sm font-bold text-slate-700 block truncate"
+                :title="formatarMoeda(candidato.limiteGastos2T)"
+              >
+                {{
+                  candidato.limiteGastos2T > 0
+                    ? formatarMoeda(candidato.limiteGastos2T)
+                    : 'Não se aplica'
+                }}
               </span>
             </div>
           </div>
 
           <div class="mt-3 bg-slate-50 p-3 rounded-xl flex justify-between items-center">
-            <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">Bens Declarados</span>
-            <span class="text-sm font-bold text-slate-800">{{ formatarMoeda(candidato.totalBens) }}</span>
+            <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-0.5"
+              >Bens Declarados</span
+            >
+            <span class="text-sm font-bold text-slate-800">{{
+              formatarMoeda(candidato.totalBens)
+            }}</span>
           </div>
         </div>
 
@@ -162,16 +235,23 @@ const formatarMoeda = (valor) => {
     </div>
 
     <div v-else class="text-center py-16 bg-white rounded-2xl border border-slate-200">
-      <p class="text-slate-500 text-base">Nenhum candidato encontrado com os critérios selecionados.</p>
+      <p class="text-slate-500 text-base">
+        Nenhum candidato encontrado com os critérios selecionados.
+      </p>
     </div>
   </div>
 
-  <!-- MODAL FLUTUANTE COM NOME DO CANDIDATO NO TOPO -->
-  <div v-if="modalAberto" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-    <div class="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in">
-
-      <!-- Cabeçalho do Modal atualizado com o Nome do Candidato -->
-      <div class="p-5 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10">
+  <!-- MODAL FLUTUANTE (BENS E ELEIÇÕES) -->
+  <div
+    v-if="modalAberto"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+  >
+    <div
+      class="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in"
+    >
+      <div
+        class="p-5 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10"
+      >
         <div>
           <span class="text-[11px] font-bold uppercase tracking-wider text-blue-600 block">
             {{ tipoModal === 'bens' ? 'Bens do Candidato' : 'Histórico de Eleições' }}
@@ -180,19 +260,34 @@ const formatarMoeda = (valor) => {
             {{ candidatoAtivo.nomeUrna || candidatoAtivo.nome }}
           </h3>
         </div>
-        <button @click="modalAberto = false" class="text-slate-400 hover:text-slate-600 text-2xl font-bold px-2">&times;</button>
+        <button
+          @click="modalAberto = false"
+          class="text-slate-400 hover:text-slate-600 text-2xl font-bold px-2"
+        >
+          &times;
+        </button>
       </div>
 
       <div class="p-6 space-y-4">
         <!-- Conteúdo dos Bens -->
         <div v-if="tipoModal === 'bens'">
-          <div class="p-4 bg-emerald-50 rounded-xl mb-4 border border-emerald-100 flex justify-between items-center">
-            <span class="text-xs uppercase tracking-wider text-emerald-800 font-bold">Total em Bens</span>
-            <span class="text-base text-emerald-900 font-extrabold">{{ formatarMoeda(candidatoAtivo.totalBens) }}</span>
+          <div
+            class="p-4 bg-emerald-50 rounded-xl mb-4 border border-emerald-100 flex justify-between items-center"
+          >
+            <span class="text-xs uppercase tracking-wider text-emerald-800 font-bold"
+              >Total em Bens</span
+            >
+            <span class="text-base text-emerald-900 font-extrabold">{{
+              formatarMoeda(candidatoAtivo.totalBens)
+            }}</span>
           </div>
 
           <div v-if="candidatoAtivo.bens && candidatoAtivo.bens.length > 0">
-            <div v-for="(bem, i) in candidatoAtivo.bens" :key="i" class="border-b border-slate-100 pb-3 mb-3 last:border-0">
+            <div
+              v-for="(bem, i) in candidatoAtivo.bens"
+              :key="i"
+              class="border-b border-slate-100 pb-3 mb-3 last:border-0"
+            >
               <p class="text-xs font-bold uppercase text-slate-400">{{ bem.tipo }}</p>
               <p class="text-sm font-semibold text-slate-800 mt-0.5">{{ bem.descricao }}</p>
               <p class="text-sm font-bold text-slate-900 mt-1">{{ formatarMoeda(bem.valor) }}</p>
@@ -205,10 +300,18 @@ const formatarMoeda = (valor) => {
 
         <!-- Conteúdo das Eleições -->
         <div v-if="tipoModal === 'eleicoes'">
-          <div v-if="candidatoAtivo.eleicoesAnteriores && candidatoAtivo.eleicoesAnteriores.length > 0">
-            <div v-for="(eleicao, i) in candidatoAtivo.eleicoesAnteriores" :key="i" class="p-4 border border-slate-200 rounded-xl mb-3 bg-slate-50">
+          <div
+            v-if="candidatoAtivo.eleicoesAnteriores && candidatoAtivo.eleicoesAnteriores.length > 0"
+          >
+            <div
+              v-for="(eleicao, i) in candidatoAtivo.eleicoesAnteriores"
+              :key="i"
+              class="p-4 border border-slate-200 rounded-xl mb-3 bg-slate-50"
+            >
               <p class="text-sm font-bold text-slate-900 leading-snug">
-                {{ candidatoAtivo.nomeUrna }} número {{ eleicao.numero || candidatoAtivo.numero }} candidato a {{ eleicao.cargo || candidatoAtivo.cargo }}
+                {{ candidatoAtivo.nomeUrna }} número
+                {{ eleicao.numero || candidatoAtivo.numero }} candidato a
+                {{ eleicao.cargo || candidatoAtivo.cargo }}
               </p>
               <p class="text-xs text-slate-500 mt-1">
                 Partido {{ eleicao.partido || candidatoAtivo.partido }} em {{ eleicao.ano || 2026 }}
@@ -229,7 +332,13 @@ const formatarMoeda = (valor) => {
   animation: fadeIn 0.2s ease-out forwards;
 }
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>
