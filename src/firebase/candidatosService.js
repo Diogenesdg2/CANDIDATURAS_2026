@@ -21,9 +21,6 @@ export const buscarCandidatos = async (ufFiltro = null, cargoFiltro = null) => {
   }
 }
 
-// ============================================================================
-// 2. FUNÇÃO DE VERIFICAÇÃO (Checa se já importamos esses dados antes)
-// ============================================================================
 export const verificarDadosExistem = async (uf, codigoCargo) => {
   try {
     const q = query(
@@ -54,9 +51,6 @@ const CARGOS = {
   10: '2º Suplente',
 }
 
-// ============================================================================
-// 3. FUNÇÃO DE SINCRONIZAÇÃO OFICIAL
-// ============================================================================
 export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgresso) => {
   try {
     const q = query(
@@ -65,18 +59,13 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       where('codigoCargo', '==', Number(codigoCargo)),
     )
     const snapshot = await getDocs(q)
-
-    if (!snapshot.empty) {
-      return
-    }
+    if (!snapshot.empty) return
 
     const nomeCargo = CARGOS[codigoCargo]
     const urlProxy = `/api-tse/divulga/rest/v1/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`
     const resposta = await fetch(urlProxy)
 
-    if (!resposta.ok) {
-      throw new Error(`O TSE retornou um erro na lista geral: ${resposta.status}`)
-    }
+    if (!resposta.ok) throw new Error(`O TSE retornou um erro na lista geral: ${resposta.status}`)
 
     const dados = await resposta.json()
     const listaCandidatos = dados.candidatos || []
@@ -92,10 +81,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
     let atual = 0
     for (const cand of listaCandidatos) {
       atual++
-
-      if (onProgresso) {
-        onProgresso(atual, totalCandidatos, cand.nomeUrna || 'Candidato')
-      }
+      if (onProgresso) onProgresso(atual, totalCandidatos, cand.nomeUrna || 'Candidato')
 
       let totalBensDeclarados = 0
       let listaBens = []
@@ -104,15 +90,12 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       let limiteGastos2T = 0
       let situacaoCand = 'Não informado'
       let situacaoPartido = 'Não informado'
-
-      // Montagem inicial usando o ID padrão
+      let dataNascimento = null
       let fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO}/${cand.id}/${uf}`
 
-      // 1. Busca os detalhes gerais do candidato
       try {
         const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`
         const respostaDetalhes = await fetch(urlDetalhes)
-
         if (respostaDetalhes.ok) {
           const detalhes = await respostaDetalhes.json()
           totalBensDeclarados = detalhes.totalDeBens || 0
@@ -122,21 +105,20 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
           situacaoCand = detalhes.descricaoSituacao || 'Não informado'
           situacaoPartido = detalhes.candidato?.situacaoCandidato || 'Não informado'
 
-          // SOLUÇÃO DAS FOTOS: Pegamos o ID da Eleição específico DESTE candidato
+          // CAPTURA BLINDADA DA DATA DE NASCIMENTO
+          dataNascimento = detalhes.dataDeNascimento || detalhes.dataNascimento || null
+
           const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
           fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
         }
       } catch (e) {
-        console.warn(`Aviso: Detalhes de ${cand.nomeUrna} indisponíveis`)
+        console.warn(`Aviso: Detalhes indisponíveis`)
       }
 
-      // 2. Busca o Histórico de Eleições Anteriores
       try {
         const urlEleicoes = `/api-tse/divulga/rest/v1/candidato/${cand.id}/eleicoes-anteriores`
         const respostaEleicoes = await fetch(urlEleicoes)
-        if (respostaEleicoes.ok) {
-          historicoEleicoes = await respostaEleicoes.json()
-        }
+        if (respostaEleicoes.ok) historicoEleicoes = await respostaEleicoes.json()
       } catch (e) {
         historicoEleicoes = [
           {
@@ -152,7 +134,6 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       const nomePartido =
         cand.partido && cand.partido.sigla ? cand.partido.sigla : cand.siglaPartido || 'Sem Partido'
 
-      // 3. Salva no Firebase
       await addDoc(candidatosCollection, {
         idTse: cand.id,
         nomeUrna: cand.nomeUrna || 'Não informado',
@@ -169,6 +150,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         limiteGastos2T: limiteGastos2T,
         situacaoCandidatura: situacaoCand,
         situacaoPartido: situacaoPartido,
+        dataDeNascimento: dataNascimento, // Salvando no banco
         fotoUrl: fotoOficialUrl,
         ano: ANO,
       })
@@ -179,28 +161,18 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
   }
 }
 
-// ============================================================================
-// 4. FUNÇÃO DE ATUALIZAÇÃO EM TEMPO REAL (Checa o status atual no TSE)
-// ============================================================================
 export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) => {
   try {
     const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`
     const respostaDetalhes = await fetch(urlDetalhes)
-
-    if (!respostaDetalhes.ok) {
-      throw new Error('Falha ao comunicar com o TSE')
-    }
+    if (!respostaDetalhes.ok) throw new Error('Falha ao comunicar com o TSE')
 
     const detalhes = await respostaDetalhes.json()
     const novaSitCand = detalhes.descricaoSituacao || 'Não informado'
     const novaSitPart = detalhes.candidato?.situacaoCandidato || 'Não informado'
 
-    // Atualiza o documento específico no Firestore
     const docRef = doc(db, 'candidatos', candidatoFirebaseId)
-    await updateDoc(docRef, {
-      situacaoCandidatura: novaSitCand,
-      situacaoPartido: novaSitPart,
-    })
+    await updateDoc(docRef, { situacaoCandidatura: novaSitCand, situacaoPartido: novaSitPart })
 
     return { situacaoCandidatura: novaSitCand, situacaoPartido: novaSitPart }
   } catch (error) {
