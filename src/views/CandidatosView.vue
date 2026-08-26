@@ -17,9 +17,57 @@ const atualizandoId = ref(null)
 const atualizandoTodos = ref(false)
 const progressoGlobal = ref({ atual: 0, total: 0 })
 
+// Modais tradicionais
 const modalAberto = ref(false)
 const tipoModal = ref('')
 const candidatoAtivo = ref({})
+
+// ----------------------------------------------------
+// MODO MANO A MANO (COMPARAÇÃO VERSUS)
+// ----------------------------------------------------
+const candidatosComparacao = ref([])
+const modalComparacaoAberto = ref(false)
+
+const toggleComparacao = (candidato) => {
+  const index = candidatosComparacao.value.findIndex((c) => c.id === candidato.id)
+  if (index > -1) {
+    // Se já tá na lista, remove
+    candidatosComparacao.value.splice(index, 1)
+  } else {
+    // Se não tá, tenta adicionar (limite de 2)
+    if (candidatosComparacao.value.length >= 2) {
+      alert('Você só pode comparar 2 candidatos por vez! Desmarque um para escolher outro.')
+      return
+    }
+    candidatosComparacao.value.push(candidato)
+  }
+}
+
+const isSelecionadoParaComparar = (candidato) => {
+  return candidatosComparacao.value.some((c) => c.id === candidato.id)
+}
+
+const abrirComparacao = () => {
+  if (candidatosComparacao.value.length === 2) {
+    modalComparacaoAberto.value = true
+  }
+}
+
+const limparComparacao = () => {
+  candidatosComparacao.value = []
+}
+
+// Inteligência para achar a "joia da coroa" (o bem mais caro do candidato)
+const obterMaiorBem = (bens) => {
+  if (!bens || bens.length === 0) return { descricao: 'Nenhum bem declarado', valor: 0 }
+  // Clona o array e ordena do mais caro pro mais barato
+  const ordenado = [...bens].sort((a, b) => b.valor - a.valor)
+  return ordenado[0]
+}
+
+// ----------------------------------------------------
+// FIM - MODO MANO A MANO
+// ----------------------------------------------------
 
 const abrirModal = (candidato, tipo) => {
   candidatoAtivo.value = candidato
@@ -74,7 +122,6 @@ const formatarMoeda = (valor) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0)
 }
 
-// Cálculo de Idade
 const calcularIdade = (dataStr) => {
   if (!dataStr) return null
   let anoNasc = 0
@@ -83,17 +130,12 @@ const calcularIdade = (dataStr) => {
   } else if (dataStr.includes('-')) {
     anoNasc = parseInt(dataStr.split('-')[0])
   }
-
-  if (anoNasc > 0) {
-    return 2026 - anoNasc + ' anos'
-  }
+  if (anoNasc > 0) return 2026 - anoNasc + ' anos'
   return null
 }
 
-// Verifica status de UM candidato
 const verificarStatusEmTempoReal = async (candidato) => {
   if (atualizandoTodos.value) return
-
   atualizandoId.value = candidato.id
   try {
     const novosStatus = await atualizarStatusCandidato(candidato.id, candidato.idTse, candidato.uf)
@@ -106,7 +148,6 @@ const verificarStatusEmTempoReal = async (candidato) => {
   }
 }
 
-// Verifica status de TODOS os candidatos da tela (Em fila)
 const atualizarTodosStatus = async () => {
   const lista = candidatosFiltrados.value
   if (lista.length === 0) return
@@ -134,11 +175,9 @@ const atualizarTodosStatus = async () => {
   atualizandoTodos.value = false
 }
 
-// Lógica de cores das caixinhas de situação
 const getCorSituacao = (situacao) => {
   if (!situacao) return 'bg-[#1f6d6d]'
   const sitUpper = situacao.toUpperCase()
-
   if (
     sitUpper.includes('INDEFERIDO') ||
     sitUpper.includes('CASSADO') ||
@@ -153,7 +192,6 @@ const getCorSituacao = (situacao) => {
   return 'bg-[#1f6d6d]'
 }
 
-// Verifica se precisa mostrar o efeito grayscale na foto
 const isInelegivel = (situacao) => {
   if (!situacao) return false
   const sitUpper = situacao.toUpperCase()
@@ -165,15 +203,11 @@ const isInelegivel = (situacao) => {
   )
 }
 
-// ----------------------------------------------------
-// NOVA FUNÇÃO: CRIANDO O TEXTO PARA O WHATSAPP
-// ----------------------------------------------------
 const compartilharWhatsApp = (candidato) => {
   const idade = calcularIdade(candidato.dataDeNascimento) || 'Não informada'
   const patrimonio = formatarMoeda(candidato.totalBens)
   const limite = formatarMoeda(candidato.limiteGastos1T)
 
-  // Emoji de alerta se a situação for ruim, ou check verde se for boa
   const isRuim = isInelegivel(candidato.situacaoCandidatura)
   const emojiStatus = isRuim
     ? '🛑'
@@ -197,16 +231,14 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
 🔎 _Fonte: Dados extraídos diretamente do portal do TSE via Explorador Eleitoral 2026_
   `.trim()
 
-  // Converte o texto para formato de URL e abre o WhatsApp (Web ou App)
   const textoCodificado = encodeURIComponent(texto)
   const urlWhatsapp = `https://wa.me/?text=${textoCodificado}`
-
   window.open(urlWhatsapp, '_blank')
 }
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 relative pb-20">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
         <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ tituloPagina }}</h1>
@@ -305,6 +337,7 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
         v-for="candidato in candidatosFiltrados"
         :key="candidato.id"
         class="relative bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col justify-between"
+        :class="{ 'ring-4 ring-indigo-500 shadow-lg': isSelecionadoParaComparar(candidato) }"
       >
         <div class="p-6">
           <div
@@ -351,6 +384,7 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
             </div>
           </div>
 
+          <!-- Situações do TSE dinâmicas e coloridas -->
           <div class="space-y-2 mb-6">
             <div
               class="p-3 rounded-sm text-white transition-colors duration-300"
@@ -423,6 +457,7 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
             </button>
           </div>
 
+          <!-- Restante do Card -->
           <div
             class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100"
             :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
@@ -480,18 +515,26 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
           >
             Bens
           </button>
+
+          <!-- BOTÃO VERSUS -->
           <button
-            @click="abrirModal(candidato, 'eleicoes')"
-            class="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
+            @click="toggleComparacao(candidato)"
+            :class="
+              isSelecionadoParaComparar(candidato)
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+            "
+            title="Selecionar para Comparar"
+            class="flex-none text-center py-2 px-3 border text-xs font-black rounded-xl transition-colors shadow-sm relative z-30"
           >
-            Eleições
+            VS
           </button>
 
-          <!-- NOVO BOTÃO: COMPARTILHAR WHATSAPP -->
+          <!-- COMPARTILHAR WHATSAPP -->
           <button
             @click="compartilharWhatsApp(candidato)"
             title="Compartilhar Ficha no WhatsApp"
-            class="flex-none flex items-center justify-center py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-sm relative z-30"
+            class="flex-none flex items-center justify-center py-2 px-3 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-sm relative z-30"
           >
             <svg
               class="w-4 h-4"
@@ -513,9 +556,38 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
         Nenhum candidato encontrado com os critérios selecionados.
       </p>
     </div>
+
+    <!-- BARRA FLUTUANTE DE COMPARAÇÃO -->
+    <div
+      v-if="candidatosComparacao.length > 0"
+      class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl z-40 flex items-center justify-between gap-6 animate-fade-in border border-slate-700 w-[90%] max-w-lg"
+    >
+      <div class="flex items-center gap-3">
+        <span
+          class="bg-indigo-500 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-inner border border-indigo-400"
+          >{{ candidatosComparacao.length }}</span
+        >
+        <span class="text-sm font-semibold tracking-wide">Selecionados</span>
+      </div>
+      <div class="flex gap-2">
+        <button
+          v-if="candidatosComparacao.length === 2"
+          @click="abrirComparacao"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-lg ring-2 ring-indigo-500/50"
+        >
+          Comparar Agora
+        </button>
+        <button
+          @click="limparComparacao"
+          class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors border border-slate-600"
+        >
+          Limpar
+        </button>
+      </div>
+    </div>
   </div>
 
-  <!-- MODAL FLUTUANTE -->
+  <!-- MODAL DE DETALHES (Bens / Eleições) -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -594,6 +666,129 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
           </div>
           <div v-else class="text-center py-6 text-slate-400 text-sm">
             Nenhum histórico anterior registrado.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE COMPARAÇÃO "MANO A MANO" -->
+  <div
+    v-if="modalComparacaoAberto"
+    class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+  >
+    <div
+      class="bg-slate-50 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in flex flex-col relative"
+    >
+      <div
+        class="p-5 bg-slate-900 text-white flex justify-between items-center sticky top-0 z-10 border-b border-slate-700"
+      >
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 block"
+            >Modo Versus</span
+          >
+          <h3 class="text-xl font-black mt-0.5 flex items-center gap-2">Comparação Direta</h3>
+        </div>
+        <button
+          @click="modalComparacaoAberto = false"
+          class="text-slate-400 hover:text-white text-2xl font-bold px-2"
+        >
+          &times;
+        </button>
+      </div>
+
+      <!-- GRID DE COMPARAÇÃO LADO A LADO -->
+      <div class="p-4 md:p-8 flex-grow">
+        <div class="grid grid-cols-2 gap-4 md:gap-8">
+          <div
+            v-for="(cand, idx) in candidatosComparacao"
+            :key="cand.id"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col"
+          >
+            <!-- Header do Card -->
+            <div
+              class="bg-slate-100 p-4 border-b border-slate-200 flex flex-col items-center justify-center relative h-48"
+            >
+              <!-- Insígnia VS no meio se for o primeiro card -->
+              <div
+                v-if="idx === 0"
+                class="absolute -right-4 md:-right-8 top-1/2 transform -translate-y-1/2 w-8 h-8 md:w-12 md:h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-black italic shadow-xl z-20 text-xs md:text-base border-4 border-slate-50"
+              >
+                VS
+              </div>
+
+              <img
+                :src="cand.fotoUrl"
+                class="w-24 h-32 object-cover rounded-xl shadow-md border-2 border-white mb-3"
+                @error="
+                  (e) => {
+                    e.target.src =
+                      'https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png'
+                  }
+                "
+              />
+              <span
+                class="bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider absolute top-4 left-4"
+                >Nº {{ cand.numero }}</span
+              >
+            </div>
+
+            <!-- Dados Comparativos -->
+            <div class="p-4 md:p-6 space-y-5 flex-grow">
+              <!-- Nome e Partido -->
+              <div class="text-center border-b border-slate-100 pb-4">
+                <h4 class="font-black text-lg text-slate-900 leading-tight mb-1">
+                  {{ cand.nomeUrna }}
+                </h4>
+                <p class="text-sm font-bold text-slate-500">{{ cand.partido }}</p>
+                <p class="text-xs text-slate-400 mt-1">
+                  {{ calcularIdade(cand.dataDeNascimento) || 'Idade não informada' }}
+                </p>
+              </div>
+
+              <!-- Situação -->
+              <div>
+                <p
+                  class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1 text-center"
+                >
+                  Situação
+                </p>
+                <div
+                  class="py-2 text-center rounded-lg font-bold text-xs text-white shadow-sm"
+                  :class="getCorSituacao(cand.situacaoCandidatura)"
+                >
+                  {{ cand.situacaoCandidatura }}
+                </div>
+              </div>
+
+              <!-- Patrimônio -->
+              <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+                <p class="text-[10px] uppercase tracking-wider text-emerald-600 font-bold mb-0.5">
+                  Patrimônio Total
+                </p>
+                <p class="text-lg font-black text-emerald-900">
+                  {{ formatarMoeda(cand.totalBens) }}
+                </p>
+              </div>
+
+              <!-- Bem mais Caro -->
+              <div
+                class="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center h-full flex flex-col justify-center"
+              >
+                <p class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">
+                  Item Mais Caro Declarado
+                </p>
+                <p
+                  class="text-xs font-semibold text-slate-700 leading-snug line-clamp-2 mb-1"
+                  :title="obterMaiorBem(cand.bens).descricao"
+                >
+                  {{ obterMaiorBem(cand.bens).descricao }}
+                </p>
+                <p class="text-sm font-black text-slate-900">
+                  {{ formatarMoeda(obterMaiorBem(cand.bens).valor) }}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
