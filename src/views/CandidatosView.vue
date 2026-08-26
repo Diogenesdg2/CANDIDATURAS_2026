@@ -74,6 +74,22 @@ const formatarMoeda = (valor) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0)
 }
 
+// Cálculo de Idade
+const calcularIdade = (dataStr) => {
+  if (!dataStr) return null
+  let anoNasc = 0
+  if (dataStr.includes('/')) {
+    anoNasc = parseInt(dataStr.split('/')[2])
+  } else if (dataStr.includes('-')) {
+    anoNasc = parseInt(dataStr.split('-')[0])
+  }
+
+  if (anoNasc > 0) {
+    return 2026 - anoNasc + ' anos'
+  }
+  return null
+}
+
 // Verifica status de UM candidato
 const verificarStatusEmTempoReal = async (candidato) => {
   if (atualizandoTodos.value) return
@@ -123,7 +139,6 @@ const getCorSituacao = (situacao) => {
   if (!situacao) return 'bg-[#1f6d6d]'
   const sitUpper = situacao.toUpperCase()
 
-  // 1. Prioridade para os status negativos (Vermelho)
   if (
     sitUpper.includes('INDEFERIDO') ||
     sitUpper.includes('CASSADO') ||
@@ -132,13 +147,9 @@ const getCorSituacao = (situacao) => {
   ) {
     return 'bg-red-600'
   }
-
-  // 2. Depois verificamos os positivos (Azul).
   if (sitUpper.includes('DEFERIDO')) {
     return 'bg-blue-600'
   }
-
-  // 3. Status padrão do TSE
   return 'bg-[#1f6d6d]'
 }
 
@@ -152,6 +163,45 @@ const isInelegivel = (situacao) => {
     sitUpper.includes('CANCELADO') ||
     sitUpper.includes('INELEGÍVEL')
   )
+}
+
+// ----------------------------------------------------
+// NOVA FUNÇÃO: CRIANDO O TEXTO PARA O WHATSAPP
+// ----------------------------------------------------
+const compartilharWhatsApp = (candidato) => {
+  const idade = calcularIdade(candidato.dataDeNascimento) || 'Não informada'
+  const patrimonio = formatarMoeda(candidato.totalBens)
+  const limite = formatarMoeda(candidato.limiteGastos1T)
+
+  // Emoji de alerta se a situação for ruim, ou check verde se for boa
+  const isRuim = isInelegivel(candidato.situacaoCandidatura)
+  const emojiStatus = isRuim
+    ? '🛑'
+    : candidato.situacaoCandidatura.toUpperCase().includes('DEFERIDO')
+      ? '✅'
+      : '⚖️'
+
+  const texto = `
+🚨 *FICHA RÁPIDA: ${candidato.nomeUrna.toUpperCase()}* 🚨
+Candidato(a) a ${candidato.cargo} por ${candidato.uf === 'BR' ? 'todo o Brasil' : candidato.uf}
+
+*Número:* ${candidato.numero}
+*Partido:* ${candidato.partido}
+*Idade:* ${idade}
+
+${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não informado'}
+
+💰 *Patrimônio Declarado:* ${patrimonio}
+📈 *Limite de Gastos (1º Turno):* ${limite}
+
+🔎 _Fonte: Dados extraídos diretamente do portal do TSE via Explorador Eleitoral 2026_
+  `.trim()
+
+  // Converte o texto para formato de URL e abre o WhatsApp (Web ou App)
+  const textoCodificado = encodeURIComponent(texto)
+  const urlWhatsapp = `https://wa.me/?text=${textoCodificado}`
+
+  window.open(urlWhatsapp, '_blank')
 }
 </script>
 
@@ -280,11 +330,20 @@ const isInelegivel = (situacao) => {
             :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
             <div>
-              <span
-                class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full mb-1"
-              >
-                Nº {{ candidato.numero }}
-              </span>
+              <div class="flex items-center gap-2 mb-1">
+                <span
+                  class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                >
+                  Nº {{ candidato.numero }}
+                </span>
+                <span
+                  v-if="calcularIdade(candidato.dataDeNascimento)"
+                  class="inline-block bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200"
+                >
+                  {{ calcularIdade(candidato.dataDeNascimento) }}
+                </span>
+              </div>
+
               <h2 class="text-lg font-bold text-slate-900 leading-tight">
                 {{ candidato.nomeUrna }}
               </h2>
@@ -292,7 +351,6 @@ const isInelegivel = (situacao) => {
             </div>
           </div>
 
-          <!-- Situações do TSE dinâmicas e coloridas -->
           <div class="space-y-2 mb-6">
             <div
               class="p-3 rounded-sm text-white transition-colors duration-300"
@@ -365,7 +423,6 @@ const isInelegivel = (situacao) => {
             </button>
           </div>
 
-          <!-- Restante do Card -->
           <div
             class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100"
             :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
@@ -428,6 +485,24 @@ const isInelegivel = (situacao) => {
             class="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
           >
             Eleições
+          </button>
+
+          <!-- NOVO BOTÃO: COMPARTILHAR WHATSAPP -->
+          <button
+            @click="compartilharWhatsApp(candidato)"
+            title="Compartilhar Ficha no WhatsApp"
+            class="flex-none flex items-center justify-center py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-sm relative z-30"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"
+              />
+            </svg>
           </button>
         </div>
       </div>
