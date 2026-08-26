@@ -14,6 +14,9 @@ const tipoModal = ref('bens')
 const candidatoAtivo = ref({})
 const partidoAtivo = ref('')
 
+// Novo estado para o modal de demografia
+const filtroDemografico = ref({ tipo: '', valor: '' })
+
 const abrirModal = (candidato, tipo = 'bens') => {
   candidatoAtivo.value = candidato
   tipoModal.value = tipo
@@ -23,6 +26,13 @@ const abrirModal = (candidato, tipo = 'bens') => {
 const abrirModalPartido = (partido) => {
   partidoAtivo.value = partido
   tipoModal.value = 'partido'
+  modalAberto.value = true
+}
+
+// Nova função para abrir o modal de demografia
+const abrirModalDemografia = (tipoRef, valor) => {
+  filtroDemografico.value = { tipo: tipoRef, valor: valor }
+  tipoModal.value = 'demografia'
   modalAberto.value = true
 }
 
@@ -101,16 +111,81 @@ const formatarMoeda = (valor) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0)
 }
 
+const categorizarBens = (listaDeBens, totalGeral) => {
+  if (!listaDeBens || listaDeBens.length === 0 || totalGeral === 0) return null
+
+  let categorias = {
+    imoveis: { valor: 0, cor: 'bg-emerald-500', label: 'Imóveis' },
+    investimentos: { valor: 0, cor: 'bg-blue-500', label: 'Investimentos & Dinheiro' },
+    veiculos: { valor: 0, cor: 'bg-amber-500', label: 'Veículos' },
+    empresas: { valor: 0, cor: 'bg-purple-500', label: 'Empresas & Outros' },
+  }
+
+  listaDeBens.forEach((bem) => {
+    const desc = (bem.descricao || '').toLowerCase()
+    const tipo = (bem.tipo || '').toLowerCase()
+    const textoCompleto = desc + ' ' + tipo
+    const valor = bem.valor || 0
+
+    if (
+      textoCompleto.includes('apartamento') ||
+      textoCompleto.includes('casa') ||
+      textoCompleto.includes('terreno') ||
+      textoCompleto.includes('terra') ||
+      textoCompleto.includes('imóvel') ||
+      textoCompleto.includes('sala') ||
+      textoCompleto.includes('fazenda') ||
+      textoCompleto.includes('lote') ||
+      textoCompleto.includes('gleba')
+    ) {
+      categorias.imoveis.valor += valor
+    } else if (
+      textoCompleto.includes('veículo') ||
+      textoCompleto.includes('carro') ||
+      textoCompleto.includes('moto') ||
+      textoCompleto.includes('caminhonete') ||
+      textoCompleto.includes('embarcação') ||
+      textoCompleto.includes('lancha') ||
+      textoCompleto.includes('aeronave')
+    ) {
+      categorias.veiculos.valor += valor
+    } else if (
+      textoCompleto.includes('poupança') ||
+      textoCompleto.includes('aplicação') ||
+      textoCompleto.includes('fundo') ||
+      textoCompleto.includes('ações') ||
+      textoCompleto.includes('cdb') ||
+      textoCompleto.includes('dinheiro') ||
+      textoCompleto.includes('espécie') ||
+      textoCompleto.includes('conta') ||
+      textoCompleto.includes('depósito') ||
+      textoCompleto.includes('renda fixa') ||
+      textoCompleto.includes('tesouro')
+    ) {
+      categorias.investimentos.valor += valor
+    } else {
+      categorias.empresas.valor += valor
+    }
+  })
+
+  return Object.values(categorias)
+    .filter((cat) => cat.valor > 0)
+    .map((cat) => ({ ...cat, percentual: (cat.valor / totalGeral) * 100 }))
+    .sort((a, b) => b.valor - a.valor)
+}
+
+const bensClassificadosAtuais = computed(() => {
+  if (tipoModal.value === 'bens' && candidatoAtivo.value) {
+    return categorizarBens(candidatoAtivo.value.bens, candidatoAtivo.value.totalBens)
+  }
+  return null
+})
+
 const kpis = computed(() => {
   const total = candidatos.value.length
   if (total === 0) return { total: 0, patrimonioSomado: 0, mediaBens: 0 }
-
   const soma = candidatos.value.reduce((acc, c) => acc + (c.totalBens || 0), 0)
-  return {
-    total,
-    patrimonioSomado: soma,
-    mediaBens: soma / total,
-  }
+  return { total, patrimonioSomado: soma, mediaBens: soma / total }
 })
 
 const rankingRicos = computed(() => {
@@ -126,14 +201,12 @@ const contagemPartidos = computed(() => {
     const p = c.partido || 'Sem Partido'
     mapPartidos[p] = (mapPartidos[p] || 0) + 1
   })
-
   const lista = Object.keys(mapPartidos)
     .map((key) => ({
       partido: key,
       total: mapPartidos[key],
     }))
     .sort((a, b) => b.total - a.total)
-
   const maiorTotal = lista.length > 0 ? lista[0].total : 1
   return { lista, maiorTotal }
 })
@@ -145,23 +218,18 @@ const rankingPartidos = computed(() => {
     if (!mapPartidos[p]) mapPartidos[p] = 0
     mapPartidos[p] += c.totalBens || 0
   })
-
   const lista = Object.keys(mapPartidos)
     .map((key) => ({
       partido: key,
       total: mapPartidos[key],
     }))
     .sort((a, b) => b.total - a.total)
-
   const maiorTotal = lista.length > 0 ? lista[0].total : 1
   return { lista, maiorTotal }
 })
 
-// === INTELIGÊNCIA DA IDADE APRIMORADA ===
 const extremosIdade = computed(() => {
   const validos = candidatos.value.filter((c) => c.dataDeNascimento)
-
-  // Se não encontrou dados, retorna um flag avisando a interface!
   if (validos.length === 0) return { possuiDados: false }
 
   const parseDate = (dateStr) => {
@@ -178,7 +246,6 @@ const extremosIdade = computed(() => {
   const ordenados = [...validos].sort(
     (a, b) => parseDate(a.dataDeNascimento) - parseDate(b.dataDeNascimento),
   )
-
   const maisVelho = ordenados[0]
   const maisNovo = ordenados[ordenados.length - 1]
 
@@ -196,10 +263,46 @@ const extremosIdade = computed(() => {
   }
 })
 
+const demografia = computed(() => {
+  const validos = candidatos.value.filter((c) => c.genero && c.genero !== 'Não informado')
+  if (validos.length === 0) return { possuiDados: false }
+
+  const agrupar = (propriedade) => {
+    const map = {}
+    validos.forEach((c) => {
+      const key = c[propriedade] || 'Não informado'
+      map[key] = (map[key] || 0) + 1
+    })
+    const total = validos.length
+    return Object.keys(map)
+      .map((k) => ({
+        label: k,
+        count: map[k],
+        percentual: (map[k] / total) * 100,
+      }))
+      .sort((a, b) => b.count - a.count)
+  }
+
+  return {
+    possuiDados: true,
+    genero: agrupar('genero'),
+    raca: agrupar('corRaca'),
+  }
+})
+
 const candidatosDoPartidoSelecionado = computed(() => {
   if (tipoModal.value !== 'partido' || !partidoAtivo.value) return []
   return candidatos.value
     .filter((c) => c.partido === partidoAtivo.value)
+    .sort((a, b) => a.nomeUrna.localeCompare(b.nomeUrna))
+})
+
+// Nova computed property para filtrar os candidatos demograficamente
+const candidatosDemografiaSelecionada = computed(() => {
+  if (tipoModal.value !== 'demografia' || !filtroDemografico.value.tipo) return []
+  const { tipo, valor } = filtroDemografico.value
+  return candidatos.value
+    .filter((c) => c[tipo] === valor)
     .sort((a, b) => a.nomeUrna.localeCompare(b.nomeUrna))
 })
 </script>
@@ -255,7 +358,7 @@ const candidatosDoPartidoSelecionado = computed(() => {
       </p>
     </div>
 
-    <!-- DASHBOARD -->
+    <!-- DASHBOARD PRINCIPAL -->
     <div v-else class="space-y-6">
       <!-- 1. KPIS GRID -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -278,6 +381,124 @@ const candidatosDoPartidoSelecionado = computed(() => {
             Média de Bens por Candidato
           </p>
           <p class="text-2xl font-black text-blue-900">{{ formatarMoeda(kpis.mediaBens) }}</p>
+        </div>
+      </div>
+
+      <!-- BLOCO: RAIO-X DEMOGRÁFICO -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2
+          class="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2 border-b border-slate-100 pb-3"
+        >
+          <span class="w-2 h-6 bg-purple-600 rounded-full inline-block"></span> Raio-X Demográfico
+        </h2>
+
+        <div
+          v-if="!demografia.possuiDados"
+          class="p-4 bg-amber-50 border border-amber-200 rounded-xl"
+        >
+          <p class="text-sm text-amber-800 font-bold flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              ></path>
+            </svg>
+            Faltam dados demográficos!
+          </p>
+          <p class="text-xs text-amber-700 mt-1 leading-relaxed">
+            Seu banco de dados foi importado antes da atualização do robô.
+            <strong>Exclua os documentos na coleção 'candidatos' no Firebase</strong> e importe
+            novamente para ativar os gráficos abaixo.
+          </p>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <!-- Gênero -->
+          <div>
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Gênero</h3>
+            <div class="space-y-4">
+              <div v-for="gen in demografia.genero" :key="gen.label" class="group">
+                <div class="flex justify-between text-xs mb-1 items-center">
+                  <!-- Transforma em botão clicável -->
+                  <button
+                    @click="abrirModalDemografia('genero', gen.label)"
+                    class="font-bold text-slate-700 hover:text-blue-600 focus:outline-none flex items-center gap-1 transition-colors"
+                  >
+                    {{ gen.label }}
+                    <svg
+                      class="w-3 h-3 opacity-0 group-hover:opacity-100"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      ></path>
+                    </svg>
+                  </button>
+                  <span class="font-bold text-slate-900"
+                    >{{ Math.round(gen.percentual) }}% ({{ gen.count }})</span
+                  >
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                  <div
+                    class="h-2 rounded-full"
+                    :class="gen.label === 'FEMININO' ? 'bg-pink-500' : 'bg-blue-500'"
+                    :style="{ width: `${gen.percentual}%` }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cor/Raça -->
+          <div>
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+              Cor/Raça Declarada
+            </h3>
+            <div class="space-y-3">
+              <div v-for="raca in demografia.raca" :key="raca.label" class="group">
+                <div class="flex justify-between text-xs mb-1 items-center">
+                  <!-- Transforma em botão clicável ('corRaca' é o nome da propriedade no banco) -->
+                  <button
+                    @click="abrirModalDemografia('corRaca', raca.label)"
+                    class="font-bold text-slate-700 hover:text-blue-600 focus:outline-none flex items-center gap-1 transition-colors"
+                  >
+                    {{ raca.label }}
+                    <svg
+                      class="w-3 h-3 opacity-0 group-hover:opacity-100"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      ></path>
+                    </svg>
+                  </button>
+                  <span class="font-bold text-slate-900"
+                    >{{ Math.round(raca.percentual) }}% ({{ raca.count }})</span
+                  >
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5">
+                  <div
+                    class="bg-indigo-500 h-1.5 rounded-full"
+                    :style="{ width: `${raca.percentual}%` }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -319,37 +540,19 @@ const candidatosDoPartidoSelecionado = computed(() => {
 
         <!-- COLUNA DA DIREITA -->
         <div class="space-y-6">
-          <!-- EXTREMOS DE IDADE COM AVISO INTELIGENTE -->
+          <!-- EXTREMOS DE IDADE -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <h2 class="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide border-b pb-2">
-              Perfil de Idade (Maior e Menor Idade)
+              Perfil de Idade
             </h2>
-
-            <!-- AVISO DE DADOS FALTANTES -->
             <div
               v-if="!extremosIdade.possuiDados"
               class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl"
             >
-              <p class="text-sm text-amber-800 font-bold flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  ></path>
-                </svg>
-                Faltam dados de idade!
-              </p>
-              <p class="text-xs text-amber-700 mt-1 leading-relaxed">
-                O sistema não encontrou a data de nascimento desses candidatos no banco de dados
-                local. Para corrigir,
-                <strong>exclua os documentos na coleção 'candidatos' do Firebase</strong> e faça a
-                importação novamente na aba "Início".
+              <p class="text-sm text-amber-800 font-bold">
+                Faltam dados de idade! Reimporte os candidatos.
               </p>
             </div>
-
-            <!-- DADOS REAIS DE IDADE -->
             <div v-else class="space-y-4 mt-4">
               <div
                 class="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100"
@@ -424,20 +627,6 @@ const candidatosDoPartidoSelecionado = computed(() => {
                     class="font-bold text-slate-700 hover:text-blue-600 focus:outline-none flex items-center gap-1 transition-colors"
                   >
                     {{ partido.partido }}
-                    <svg
-                      class="w-3 h-3 opacity-0 group-hover:opacity-100"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      ></path>
-                    </svg>
                   </button>
                   <span class="font-bold text-slate-900">{{ partido.total }} candidato(s)</span>
                 </div>
@@ -493,12 +682,23 @@ const candidatosDoPartidoSelecionado = computed(() => {
         class="p-5 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10 shrink-0"
       >
         <div>
+          <!-- Título Dinâmico do Modal -->
           <span class="text-[11px] font-bold uppercase tracking-wider text-blue-600 block">
-            {{ tipoModal === 'bens' ? 'Detalhamento de Bens Declarados' : 'Candidatos do Partido' }}
+            {{
+              tipoModal === 'bens'
+                ? 'Detalhamento de Bens Declarados'
+                : tipoModal === 'partido'
+                  ? 'Candidatos do Partido'
+                  : 'Filtro Demográfico'
+            }}
           </span>
           <h3 class="text-xl font-extrabold text-slate-900 mt-0.5">
             {{
-              tipoModal === 'bens' ? candidatoAtivo.nomeUrna || candidatoAtivo.nome : partidoAtivo
+              tipoModal === 'bens'
+                ? candidatoAtivo.nomeUrna || candidatoAtivo.nome
+                : tipoModal === 'partido'
+                  ? partidoAtivo
+                  : `${filtroDemografico.valor}`
             }}
           </h3>
         </div>
@@ -510,25 +710,55 @@ const candidatosDoPartidoSelecionado = computed(() => {
         </button>
       </div>
 
-      <div class="p-6 space-y-4 overflow-y-auto">
+      <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar">
         <!-- Conteúdo dos Bens -->
         <div v-if="tipoModal === 'bens'">
-          <div
-            class="p-4 bg-emerald-50 rounded-xl mb-4 border border-emerald-100 flex justify-between items-center"
-          >
-            <span class="text-xs uppercase tracking-wider text-emerald-800 font-bold"
-              >Total em Bens</span
+          <div class="p-4 bg-slate-50 rounded-xl mb-4 border border-slate-200 flex flex-col gap-3">
+            <div class="flex justify-between items-center w-full">
+              <span class="text-xs uppercase tracking-wider text-slate-500 font-bold"
+                >Total Declarado</span
+              >
+              <span class="text-lg text-slate-900 font-black">{{
+                formatarMoeda(candidatoAtivo.totalBens)
+              }}</span>
+            </div>
+
+            <div
+              v-if="bensClassificadosAtuais && bensClassificadosAtuais.length > 0"
+              class="w-full"
             >
-            <span class="text-base text-emerald-900 font-extrabold">{{
-              formatarMoeda(candidatoAtivo.totalBens)
-            }}</span>
+              <div
+                class="w-full h-3 rounded-full flex overflow-hidden mb-2 shadow-inner border border-slate-200/50"
+              >
+                <div
+                  v-for="cat in bensClassificadosAtuais"
+                  :key="cat.label"
+                  :class="cat.cor"
+                  :style="{ width: `${cat.percentual}%` }"
+                  class="h-full"
+                ></div>
+              </div>
+
+              <div class="flex flex-wrap gap-x-4 gap-y-1">
+                <div
+                  v-for="cat in bensClassificadosAtuais"
+                  :key="'leg-' + cat.label"
+                  class="flex items-center gap-1.5"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full inline-block" :class="cat.cor"></span>
+                  <span class="text-[10px] font-bold text-slate-600"
+                    >{{ cat.label }} ({{ Math.round(cat.percentual) }}%)</span
+                  >
+                </div>
+              </div>
+            </div>
           </div>
 
           <div v-if="candidatoAtivo.bens && candidatoAtivo.bens.length > 0">
             <div
               v-for="(bem, i) in candidatoAtivo.bens"
               :key="i"
-              class="border-b border-slate-100 pb-3 mb-3 last:border-0"
+              class="border-b border-slate-100 pb-3 mb-3 last:border-0 hover:bg-slate-50 p-2 rounded transition-colors"
             >
               <p class="text-xs font-bold uppercase text-slate-400">{{ bem.tipo }}</p>
               <p class="text-sm font-semibold text-slate-800 mt-0.5">{{ bem.descricao }}</p>
@@ -540,7 +770,7 @@ const candidatosDoPartidoSelecionado = computed(() => {
           </div>
         </div>
 
-        <!-- Conteúdo da Lista de Candidatos -->
+        <!-- Conteúdo da Lista de Candidatos do Partido -->
         <div v-if="tipoModal === 'partido'">
           <div class="flex items-center justify-between px-3 pb-2 mb-3 border-b border-slate-200">
             <div class="flex items-center">
@@ -576,6 +806,52 @@ const candidatosDoPartidoSelecionado = computed(() => {
             </div>
           </div>
         </div>
+
+        <!-- Conteúdo da Lista Demográfica (Novo!) -->
+        <div v-if="tipoModal === 'demografia'">
+          <div class="flex items-center justify-between px-3 pb-2 mb-3 border-b border-slate-200">
+            <div class="flex items-center">
+              <span
+                class="text-[10px] font-bold text-slate-400 uppercase inline-block w-[60px] text-center mr-2"
+                >Número</span
+              >
+              <span class="text-[10px] font-bold text-slate-400 uppercase"
+                >Candidato / Partido</span
+              >
+            </div>
+            <div class="text-[10px] font-bold text-slate-400 uppercase text-right pl-2">
+              Bens Declarados
+            </div>
+          </div>
+          <div class="space-y-3">
+            <div
+              v-for="candidato in candidatosDemografiaSelecionada"
+              :key="candidato.id"
+              class="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 transition-colors"
+            >
+              <div class="flex items-center">
+                <span
+                  class="text-[10px] bg-slate-200 text-slate-600 font-bold px-2 py-1 rounded mr-2 inline-block w-[60px] text-center"
+                >
+                  Nº {{ candidato.numero }}
+                </span>
+                <div class="flex flex-col">
+                  <span class="text-sm font-bold text-slate-800 leading-tight">{{
+                    candidato.nomeUrna
+                  }}</span>
+                  <span class="text-[10px] text-slate-500 font-semibold">{{
+                    candidato.partido
+                  }}</span>
+                </div>
+              </div>
+              <div
+                class="text-xs font-bold text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0"
+              >
+                {{ formatarMoeda(candidato.totalBens) }}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -595,6 +871,7 @@ const candidatosDoPartidoSelecionado = computed(() => {
     transform: scale(1);
   }
 }
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }

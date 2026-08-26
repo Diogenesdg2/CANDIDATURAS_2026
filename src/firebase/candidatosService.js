@@ -91,6 +91,12 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       let situacaoCand = 'Não informado'
       let situacaoPartido = 'Não informado'
       let dataNascimento = null
+
+      // NOVAS VARIÁVEIS DEMOGRÁFICAS
+      let genero = 'Não informado'
+      let corRaca = 'Não informado'
+      let grauInstrucao = 'Não informado'
+
       let fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO}/${cand.id}/${uf}`
 
       try {
@@ -104,9 +110,12 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
           listaBens = detalhes.bens || []
           situacaoCand = detalhes.descricaoSituacao || 'Não informado'
           situacaoPartido = detalhes.candidato?.situacaoCandidato || 'Não informado'
-
-          // CAPTURA BLINDADA DA DATA DE NASCIMENTO
           dataNascimento = detalhes.dataDeNascimento || detalhes.dataNascimento || null
+
+          // CAPTURANDO OS DADOS DEMOGRÁFICOS DO TSE
+          genero = detalhes.descricaoSexo || 'Não informado'
+          corRaca = detalhes.descricaoCorRaca || 'Não informado'
+          grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
 
           const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
           fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
@@ -150,7 +159,10 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         limiteGastos2T: limiteGastos2T,
         situacaoCandidatura: situacaoCand,
         situacaoPartido: situacaoPartido,
-        dataDeNascimento: dataNascimento, // Salvando no banco
+        dataDeNascimento: dataNascimento,
+        genero: genero, // Salvando
+        corRaca: corRaca, // Salvando
+        grauInstrucao: grauInstrucao, // Salvando
         fotoUrl: fotoOficialUrl,
         ano: ANO,
       })
