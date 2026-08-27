@@ -31,10 +31,8 @@ const modalComparacaoAberto = ref(false)
 const toggleComparacao = (candidato) => {
   const index = candidatosComparacao.value.findIndex((c) => c.id === candidato.id)
   if (index > -1) {
-    // Se já tá na lista, remove
     candidatosComparacao.value.splice(index, 1)
   } else {
-    // Se não tá, tenta adicionar (limite de 2)
     if (candidatosComparacao.value.length >= 2) {
       alert('Você só pode comparar 2 candidatos por vez! Desmarque um para escolher outro.')
       return
@@ -57,16 +55,11 @@ const limparComparacao = () => {
   candidatosComparacao.value = []
 }
 
-// Inteligência para achar a "joia da coroa" (o bem mais caro do candidato)
 const obterMaiorBem = (bens) => {
   if (!bens || bens.length === 0) return { descricao: 'Nenhum bem declarado', valor: 0 }
-  // Clona o array e ordena do mais caro pro mais barato
   const ordenado = [...bens].sort((a, b) => b.valor - a.valor)
   return ordenado[0]
 }
-
-// ----------------------------------------------------
-// FIM - MODO MANO A MANO
 // ----------------------------------------------------
 
 const abrirModal = (candidato, tipo) => {
@@ -615,7 +608,6 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
       </div>
 
       <div class="p-6 space-y-4">
-        <!-- Conteúdo dos Bens -->
         <div v-if="tipoModal === 'bens'">
           <div
             class="p-4 bg-emerald-50 rounded-xl mb-4 border border-emerald-100 flex justify-between items-center"
@@ -644,7 +636,6 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
           </div>
         </div>
 
-        <!-- Conteúdo das Eleições -->
         <div v-if="tipoModal === 'eleicoes'">
           <div
             v-if="candidatoAtivo.eleicoesAnteriores && candidatoAtivo.eleicoesAnteriores.length > 0"
@@ -672,7 +663,7 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
     </div>
   </div>
 
-  <!-- MODAL DE COMPARAÇÃO "MANO A MANO" -->
+  <!-- MODAL DE COMPARAÇÃO "MANO A MANO" CORRIGIDO -->
   <div
     v-if="modalComparacaoAberto"
     class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
@@ -699,24 +690,25 @@ ${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não inf
 
       <!-- GRID DE COMPARAÇÃO LADO A LADO -->
       <div class="p-4 md:p-8 flex-grow">
-        <div class="grid grid-cols-2 gap-4 md:gap-8">
+        <!-- 'relative' ADICIONADO AQUI NO GRID E VS MOVIDO PRA CÁ -->
+        <div class="grid grid-cols-2 gap-4 md:gap-8 relative">
+          <!-- A INSÍGNIA VS CENTRALIZADA NO PAINEL (Não é mais cortada!) -->
+          <div
+            class="absolute left-1/2 top-24 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-black italic shadow-xl z-20 text-xs md:text-base border-4 border-slate-50"
+          >
+            VS
+          </div>
+
+          <!-- TIREI O 'overflow-hidden' E COLOQUEI 'z-10' -->
           <div
             v-for="(cand, idx) in candidatosComparacao"
             :key="cand.id"
-            class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col relative z-10"
           >
-            <!-- Header do Card -->
+            <!-- ARREDONDEI O TOPO DO HEADER PRA NÃO PERDER O DESIGN ('rounded-t-2xl') -->
             <div
-              class="bg-slate-100 p-4 border-b border-slate-200 flex flex-col items-center justify-center relative h-48"
+              class="bg-slate-100 rounded-t-2xl p-4 border-b border-slate-200 flex flex-col items-center justify-center relative h-48"
             >
-              <!-- Insígnia VS no meio se for o primeiro card -->
-              <div
-                v-if="idx === 0"
-                class="absolute -right-4 md:-right-8 top-1/2 transform -translate-y-1/2 w-8 h-8 md:w-12 md:h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-black italic shadow-xl z-20 text-xs md:text-base border-4 border-slate-50"
-              >
-                VS
-              </div>
-
               <img
                 :src="cand.fotoUrl"
                 class="w-24 h-32 object-cover rounded-xl shadow-md border-2 border-white mb-3"
