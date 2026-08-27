@@ -45,6 +45,88 @@ const abrirModal = async (candidato, tipo) => {
 }
 
 // ----------------------------------------------------
+// INTELIGÊNCIA: CLASSIFICADOR DE BENS COM CASAS DECIMAIS
+// ----------------------------------------------------
+const categorizarBens = (listaDeBens, totalGeral) => {
+  if (!listaDeBens || listaDeBens.length === 0 || totalGeral === 0) return null
+
+  let categorias = {
+    imoveis: { valor: 0, cor: 'bg-emerald-500', label: 'Imóveis' },
+    investimentos: { valor: 0, cor: 'bg-blue-500', label: 'Investimentos & Dinheiro' },
+    veiculos: { valor: 0, cor: 'bg-amber-500', label: 'Veículos' },
+    empresas: { valor: 0, cor: 'bg-purple-500', label: 'Empresas & Outros' },
+  }
+
+  listaDeBens.forEach((bem) => {
+    const desc = (bem.descricao || '').toLowerCase()
+    const tipo = (bem.tipo || '').toLowerCase()
+    const textoCompleto = desc + ' ' + tipo
+    const valor = bem.valor || 0
+
+    if (
+      textoCompleto.includes('apartamento') ||
+      textoCompleto.includes('casa') ||
+      textoCompleto.includes('terreno') ||
+      textoCompleto.includes('terra') ||
+      textoCompleto.includes('imóvel') ||
+      textoCompleto.includes('sala') ||
+      textoCompleto.includes('fazenda') ||
+      textoCompleto.includes('lote') ||
+      textoCompleto.includes('gleba')
+    ) {
+      categorias.imoveis.valor += valor
+    } else if (
+      textoCompleto.includes('veículo') ||
+      textoCompleto.includes('carro') ||
+      textoCompleto.includes('moto') ||
+      textoCompleto.includes('caminhonete') ||
+      textoCompleto.includes('embarcação') ||
+      textoCompleto.includes('lancha') ||
+      textoCompleto.includes('aeronave')
+    ) {
+      categorias.veiculos.valor += valor
+    } else if (
+      textoCompleto.includes('poupança') ||
+      textoCompleto.includes('aplicação') ||
+      textoCompleto.includes('fundo') ||
+      textoCompleto.includes('ações') ||
+      textoCompleto.includes('cdb') ||
+      textoCompleto.includes('dinheiro') ||
+      textoCompleto.includes('espécie') ||
+      textoCompleto.includes('conta') ||
+      textoCompleto.includes('depósito') ||
+      textoCompleto.includes('renda fixa') ||
+      textoCompleto.includes('tesouro')
+    ) {
+      categorias.investimentos.valor += valor
+    } else {
+      categorias.empresas.valor += valor
+    }
+  })
+
+  return Object.values(categorias)
+    .filter((cat) => cat.valor > 0)
+    .map((cat) => {
+      const percentualReal = (cat.valor / totalGeral) * 100
+      const percentualFormatado = percentualReal > 0 && percentualReal < 0.1 ? 0.1 : percentualReal
+
+      return {
+        ...cat,
+        percentual: percentualReal,
+        percentualTexto: percentualFormatado.toFixed(1).replace('.', ','),
+      }
+    })
+    .sort((a, b) => b.valor - a.valor)
+}
+
+const bensClassificadosAtuais = computed(() => {
+  if (tipoModal.value === 'bens' && candidatoAtivo.value) {
+    return categorizarBens(candidatoAtivo.value.bens, candidatoAtivo.value.totalBens)
+  }
+  return null
+})
+
+// ----------------------------------------------------
 // MODO MANO A MANO (COMPARAÇÃO VERSUS)
 // ----------------------------------------------------
 const candidatosComparacao = ref([])
@@ -436,7 +518,6 @@ const compartilharWhatsApp = (candidato) => {
                 {{ candidato.partido }}
               </p>
 
-              <!-- BLOCO DO VICE COM AVISO DE TRANSPARÊNCIA -->
               <div
                 v-if="['Presidente', 'Governador'].includes(candidato.cargo)"
                 class="mt-3 flex items-start gap-1.5 bg-indigo-50/50 border border-indigo-100 p-2 rounded-lg"
@@ -464,7 +545,6 @@ const compartilharWhatsApp = (candidato) => {
                       {{ candidato.vices.join(' • ') }}
                     </template>
                     <template v-else>
-                      <!-- TEXTO PROFISSIONAL CASO O TSE AINDA NÃO TENHA LIBERADO -->
                       <span class="italic opacity-70 block mt-0.5 leading-snug">
                         O TSE ainda não processou a documentação. A informação oficial do vice está
                         indisponível no momento.
@@ -711,7 +791,7 @@ const compartilharWhatsApp = (candidato) => {
     </div>
   </main>
 
-  <!-- MODAL ACESSÍVEL -->
+  <!-- MODAL DE BENS COM CASAS DECIMAIS -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -720,15 +800,17 @@ const compartilharWhatsApp = (candidato) => {
     aria-labelledby="modal-title"
   >
     <div
-      class="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in"
+      class="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in flex flex-col"
     >
       <header
-        class="p-5 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10"
+        class="p-5 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10 shrink-0"
       >
         <div>
           <span class="text-[11px] font-bold uppercase tracking-wider text-blue-600 block">
             {{
-              tipoModal === 'bens' ? 'Bens do Candidato' : 'Raio-X da Câmara (Atuação Parlamentar)'
+              tipoModal === 'bens'
+                ? 'Detalhamento de Bens Declarados'
+                : 'Raio-X da Câmara (Atuação Parlamentar)'
             }}
           </span>
           <h3 id="modal-title" class="text-xl font-extrabold text-slate-900 mt-0.5" tabindex="-1">
@@ -744,33 +826,62 @@ const compartilharWhatsApp = (candidato) => {
         </button>
       </header>
 
-      <div class="p-6 space-y-4">
+      <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar">
         <div v-if="tipoModal === 'bens'">
-          <div
-            class="p-4 bg-emerald-50 rounded-xl mb-4 border border-emerald-100 flex justify-between items-center"
-          >
-            <span class="text-xs uppercase tracking-wider text-emerald-800 font-bold"
-              >Total em Bens</span
-            >
-            <span class="text-base text-emerald-900 font-extrabold">{{
-              formatarMoeda(candidatoAtivo.totalBens)
-            }}</span>
-          </div>
-          <div v-if="candidatoAtivo.bens && candidatoAtivo.bens.length > 0">
-            <ul class="space-y-3">
-              <li
-                v-for="(bem, i) in candidatoAtivo.bens"
-                :key="i"
-                class="border-b border-slate-100 pb-3 last:border-0"
+          <div class="p-4 bg-slate-50 rounded-xl mb-4 border border-slate-200 flex flex-col gap-3">
+            <div class="flex justify-between items-center w-full">
+              <span class="text-xs uppercase tracking-wider text-slate-500 font-bold"
+                >Total Declarado</span
               >
-                <p class="text-xs font-bold uppercase text-slate-400">{{ bem.tipo }}</p>
-                <p class="text-sm font-semibold text-slate-800 mt-0.5">{{ bem.descricao }}</p>
-                <p class="text-sm font-bold text-slate-900 mt-1">{{ formatarMoeda(bem.valor) }}</p>
-              </li>
-            </ul>
+              <span class="text-lg text-slate-900 font-black">{{
+                formatarMoeda(candidatoAtivo.totalBens)
+              }}</span>
+            </div>
+
+            <div
+              v-if="bensClassificadosAtuais && bensClassificadosAtuais.length > 0"
+              class="w-full"
+            >
+              <div
+                class="w-full h-3 rounded-full flex overflow-hidden mb-2 shadow-inner border border-slate-200/50"
+              >
+                <div
+                  v-for="cat in bensClassificadosAtuais"
+                  :key="cat.label"
+                  :class="cat.cor"
+                  :style="{ width: `${cat.percentual}%` }"
+                  class="h-full"
+                ></div>
+              </div>
+
+              <div class="flex flex-wrap gap-x-4 gap-y-1">
+                <div
+                  v-for="cat in bensClassificadosAtuais"
+                  :key="'leg-' + cat.label"
+                  class="flex items-center gap-1.5"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full inline-block" :class="cat.cor"></span>
+                  <span class="text-[10px] font-bold text-slate-600"
+                    >{{ cat.label }} ({{ cat.percentualTexto }}%)</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="candidatoAtivo.bens && candidatoAtivo.bens.length > 0">
+            <div
+              v-for="(bem, i) in candidatoAtivo.bens"
+              :key="i"
+              class="border-b border-slate-100 pb-3 mb-3 last:border-0 hover:bg-slate-50 p-2 rounded transition-colors"
+            >
+              <p class="text-xs font-bold uppercase text-slate-400">{{ bem.tipo }}</p>
+              <p class="text-sm font-semibold text-slate-800 mt-0.5">{{ bem.descricao }}</p>
+              <p class="text-sm font-bold text-slate-900 mt-1">{{ formatarMoeda(bem.valor) }}</p>
+            </div>
           </div>
           <div v-else class="text-center py-6 text-slate-400 text-sm">
-            Nenhum detalhe de bem cadastrado.
+            Nenhum detalhe de bem cadastrado para este candidato.
           </div>
         </div>
 
@@ -953,7 +1064,6 @@ const compartilharWhatsApp = (candidato) => {
                 </h4>
                 <p class="text-sm font-bold text-slate-500">{{ cand.partido }}</p>
 
-                <!-- NOME DO VICE NO VERSUS COM O AVISO CLARO -->
                 <div
                   v-if="['Presidente', 'Governador'].includes(cand.cargo)"
                   class="mt-2 bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-1 rounded mx-auto inline-flex items-center gap-1 max-w-[90%] text-center"
@@ -1028,5 +1138,19 @@ const compartilharWhatsApp = (candidato) => {
     opacity: 1;
     transform: scale(1);
   }
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 </style>

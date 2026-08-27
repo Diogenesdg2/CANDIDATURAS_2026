@@ -170,7 +170,16 @@ const categorizarBens = (listaDeBens, totalGeral) => {
 
   return Object.values(categorias)
     .filter((cat) => cat.valor > 0)
-    .map((cat) => ({ ...cat, percentual: (cat.valor / totalGeral) * 100 }))
+    .map((cat) => {
+      const percentualReal = (cat.valor / totalGeral) * 100
+      const percentualFormatado = percentualReal > 0 && percentualReal < 0.1 ? 0.1 : percentualReal
+
+      return {
+        ...cat,
+        percentual: percentualReal,
+        percentualTexto: percentualFormatado.toFixed(1).replace('.', ','),
+      }
+    })
     .sort((a, b) => b.valor - a.valor)
 }
 
@@ -297,7 +306,6 @@ const candidatosDoPartidoSelecionado = computed(() => {
     .sort((a, b) => a.nomeUrna.localeCompare(b.nomeUrna))
 })
 
-// Nova computed property para filtrar os candidatos demograficamente
 const candidatosDemografiaSelecionada = computed(() => {
   if (tipoModal.value !== 'demografia' || !filtroDemografico.value.tipo) return []
   const { tipo, valor } = filtroDemografico.value
@@ -421,7 +429,6 @@ const candidatosDemografiaSelecionada = computed(() => {
             <div class="space-y-4">
               <div v-for="gen in demografia.genero" :key="gen.label" class="group">
                 <div class="flex justify-between text-xs mb-1 items-center">
-                  <!-- Transforma em botão clicável -->
                   <button
                     @click="abrirModalDemografia('genero', gen.label)"
                     class="font-bold text-slate-700 hover:text-blue-600 focus:outline-none flex items-center gap-1 transition-colors"
@@ -465,7 +472,6 @@ const candidatosDemografiaSelecionada = computed(() => {
             <div class="space-y-3">
               <div v-for="raca in demografia.raca" :key="raca.label" class="group">
                 <div class="flex justify-between text-xs mb-1 items-center">
-                  <!-- Transforma em botão clicável ('corRaca' é o nome da propriedade no banco) -->
                   <button
                     @click="abrirModalDemografia('corRaca', raca.label)"
                     class="font-bold text-slate-700 hover:text-blue-600 focus:outline-none flex items-center gap-1 transition-colors"
@@ -747,7 +753,7 @@ const candidatosDemografiaSelecionada = computed(() => {
                 >
                   <span class="w-2.5 h-2.5 rounded-full inline-block" :class="cat.cor"></span>
                   <span class="text-[10px] font-bold text-slate-600"
-                    >{{ cat.label }} ({{ Math.round(cat.percentual) }}%)</span
+                    >{{ cat.label }} ({{ cat.percentualTexto }}%)</span
                   >
                 </div>
               </div>
@@ -807,7 +813,7 @@ const candidatosDemografiaSelecionada = computed(() => {
           </div>
         </div>
 
-        <!-- Conteúdo da Lista Demográfica (Novo!) -->
+        <!-- Conteúdo da Lista Demográfica -->
         <div v-if="tipoModal === 'demografia'">
           <div class="flex items-center justify-between px-3 pb-2 mb-3 border-b border-slate-200">
             <div class="flex items-center">
