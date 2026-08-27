@@ -424,7 +424,7 @@ const compartilharWhatsApp = (candidato) => {
   }
 
   const texto =
-    `🚨 *FICHA RÁPIDA: ${candidato.nomeUrna.toUpperCase()}* 🚨\nCandidato(a) a ${candidato.cargo} por ${candidato.uf === 'BR' ? 'todo o Brasil' : candidato.uf}\n\n*Número:* ${candidato.numero}\n*Partido:* ${candidato.partido}\n${textoVice}*Idade:* ${idade}\n\n${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não informado'}\n\n💰 *Patrimônio Declarado:* ${patrimonio}\n📈 *Limite de Gastos (1º Turno):* ${limite}\n\n🔎 _Fonte: Dados extraídos diretamente do portal do TSE via Explorador Eleitoral_`.trim()
+    `🚨 *FICHA RÁPIDA: ${candidato.nomeUrna.toUpperCase()}* 🚨\nCandidato(a) a ${candidato.cargo} por ${candidato.uf === 'BR' ? 'todo o Brasil' : candidato.uf}\n\n*Número:* ${candidato.numero}\n*Partido:* ${candidato.partido}\n${textoVice}*Idade:* ${idade}\n\n${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não informado'}\n\n💰 *Patrimônio Declarado:* ${patrimonio}\n📈 *Limite de Gastos (1º Turno):* ${limite}\n\n🔎 _Fonte: Dados extraídos diretamente do portal do TSE via Explorador Eleitoral_\n🔗 *Acesse o painel completo:* https://main.d19svo3o4axtyl.amplifyapp.com`.trim()
 
   const textoCodificado = encodeURIComponent(texto)
   window.open(`https://wa.me/?text=${textoCodificado}`, '_blank')
