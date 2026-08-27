@@ -29,6 +29,7 @@ const candidatoAtivo = ref({})
 
 const dadosRaioX = ref(null)
 const raioxLoading = ref(false)
+const deputadosAtuais = ref([])
 
 const abrirModal = async (candidato, tipo) => {
   candidatoAtivo.value = candidato
@@ -104,8 +105,38 @@ const tituloPagina = computed(() => {
 
 onMounted(async () => {
   candidatos.value = await buscarCandidatos(ufUrl, cargoUrl)
+
+  try {
+    const res = await fetch('https://dadosabertos.camara.leg.br/api/v2/deputados')
+    if (res.ok) {
+      const data = await res.json()
+      deputadosAtuais.value = data.dados
+    }
+  } catch (e) {
+    console.warn('Aviso: Não foi possível carregar a lista prévia da Câmara.', e)
+  }
+
   carregando.value = false
 })
+
+const isDeputadoCamara = (candidato) => {
+  if (deputadosAtuais.value.length === 0) return true
+  const normalizar = (str) =>
+    str
+      ? str
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .trim()
+      : ''
+  const nomeUrnaCand = normalizar(candidato.nomeUrna)
+
+  return deputadosAtuais.value.some((deputado) => {
+    const nomeDeputado = normalizar(deputado.nome)
+    const ufBate = candidato.uf === 'BR' || deputado.siglaUf === candidato.uf
+    return nomeDeputado === nomeUrnaCand && ufBate
+  })
+}
 
 const partidos = computed(() => {
   return [...new Set(candidatos.value.map((c) => c.partido).filter(Boolean))]
@@ -128,23 +159,34 @@ const formatarMoeda = (valor) => {
 }
 
 const calcularIdade = (dataStr) => {
-  if (!dataStr) return null
+  if (!dataStr) return 'Idade N/I'
   let anoNasc = 0
   if (dataStr.includes('/')) anoNasc = parseInt(dataStr.split('/')[2])
   else if (dataStr.includes('-')) anoNasc = parseInt(dataStr.split('-')[0])
   if (anoNasc > 0) return 2026 - anoNasc + ' anos'
-  return null
+  return 'Idade N/I'
 }
 
+// ----------------------------------------------------
+// ATUALIZAÇÃO FORÇADA DE TELA (REATIVIDADE DO VUE)
+// ----------------------------------------------------
 const verificarStatusEmTempoReal = async (candidato) => {
   if (atualizandoTodos.value) return
   atualizandoId.value = candidato.id
   try {
-    const novosStatus = await atualizarStatusCandidato(candidato.id, candidato.idTse, candidato.uf)
-    candidato.situacaoCandidatura = novosStatus.situacaoCandidatura
-    candidato.situacaoPartido = novosStatus.situacaoPartido
+    const novosDados = await atualizarStatusCandidato(candidato.id, candidato.idTse, candidato.uf)
+
+    // Injetamos chave por chave para forçar o Vue a piscar a tela
+    candidato.situacaoCandidatura = novosDados.situacaoCandidatura
+    candidato.situacaoPartido = novosDados.situacaoPartido
+    candidato.totalBens = novosDados.totalBens
+    candidato.bens = novosDados.bens
+    candidato.limiteGastos1T = novosDados.limiteGastos1T
+    candidato.limiteGastos2T = novosDados.limiteGastos2T
+    candidato.dataDeNascimento = novosDados.dataDeNascimento
+    candidato.vices = [...novosDados.vices] // Clonamos a lista de vices para ele desenhar na tela!
   } catch (error) {
-    alert('Não foi possível verificar no TSE no momento.')
+    alert('Não foi possível sincronizar com o TSE no momento.')
   } finally {
     atualizandoId.value = null
   }
@@ -160,15 +202,17 @@ const atualizarTodosStatus = async () => {
   for (const candidato of lista) {
     atualizandoId.value = candidato.id
     try {
-      const novosStatus = await atualizarStatusCandidato(
-        candidato.id,
-        candidato.idTse,
-        candidato.uf,
-      )
-      candidato.situacaoCandidatura = novosStatus.situacaoCandidatura
-      candidato.situacaoPartido = novosStatus.situacaoPartido
+      const novosDados = await atualizarStatusCandidato(candidato.id, candidato.idTse, candidato.uf)
+      candidato.situacaoCandidatura = novosDados.situacaoCandidatura
+      candidato.situacaoPartido = novosDados.situacaoPartido
+      candidato.totalBens = novosDados.totalBens
+      candidato.bens = novosDados.bens
+      candidato.limiteGastos1T = novosDados.limiteGastos1T
+      candidato.limiteGastos2T = novosDados.limiteGastos2T
+      candidato.dataDeNascimento = novosDados.dataDeNascimento
+      candidato.vices = [...novosDados.vices]
     } catch (error) {
-      console.warn(`Falha ao atualizar ${candidato.nomeUrna}`)
+      console.warn(`Falha ao sincronizar ${candidato.nomeUrna}`)
     }
     progressoGlobal.value.atual++
   }
@@ -205,8 +249,20 @@ const isInelegivel = (situacao) => {
   )
 }
 
+const tratarErroFoto = (e, candidato) => {
+  if (!e.target.dataset.triedFix) {
+    e.target.dataset.triedFix = 'true'
+    const idCorreto = candidato.uf === 'BR' ? '2039602022' : '2040602022'
+    e.target.src = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idCorreto}/${candidato.idTse}/${candidato.uf}`
+  } else {
+    e.target.onerror = null
+    e.target.src =
+      'https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png'
+  }
+}
+
 const compartilharWhatsApp = (candidato) => {
-  const idade = calcularIdade(candidato.dataDeNascimento) || 'Não informada'
+  const idade = calcularIdade(candidato.dataDeNascimento)
   const patrimonio = formatarMoeda(candidato.totalBens)
   const limite = formatarMoeda(candidato.limiteGastos1T)
 
@@ -217,8 +273,17 @@ const compartilharWhatsApp = (candidato) => {
       ? '✅'
       : '⚖️'
 
+  let textoVice = ''
+  if (['Presidente', 'Governador'].includes(candidato.cargo)) {
+    if (candidato.vices && candidato.vices.length > 0) {
+      textoVice = `*Vice:* ${candidato.vices.join(' e ')}\n`
+    } else {
+      textoVice = `*Vice:* Aguardando registro no TSE\n`
+    }
+  }
+
   const texto =
-    `🚨 *FICHA RÁPIDA: ${candidato.nomeUrna.toUpperCase()}* 🚨\nCandidato(a) a ${candidato.cargo} por ${candidato.uf === 'BR' ? 'todo o Brasil' : candidato.uf}\n\n*Número:* ${candidato.numero}\n*Partido:* ${candidato.partido}\n*Idade:* ${idade}\n\n${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não informado'}\n\n💰 *Patrimônio Declarado:* ${patrimonio}\n📈 *Limite de Gastos (1º Turno):* ${limite}\n\n🔎 _Fonte: Dados extraídos diretamente do portal do TSE via Explorador Eleitoral_`.trim()
+    `🚨 *FICHA RÁPIDA: ${candidato.nomeUrna.toUpperCase()}* 🚨\nCandidato(a) a ${candidato.cargo} por ${candidato.uf === 'BR' ? 'todo o Brasil' : candidato.uf}\n\n*Número:* ${candidato.numero}\n*Partido:* ${candidato.partido}\n${textoVice}*Idade:* ${idade}\n\n${emojiStatus} *Situação no TSE:* ${candidato.situacaoCandidatura || 'Não informado'}\n\n💰 *Patrimônio Declarado:* ${patrimonio}\n📈 *Limite de Gastos (1º Turno):* ${limite}\n\n🔎 _Fonte: Dados extraídos diretamente do portal do TSE via Explorador Eleitoral_`.trim()
 
   const textoCodificado = encodeURIComponent(texto)
   window.open(`https://wa.me/?text=${textoCodificado}`, '_blank')
@@ -226,13 +291,15 @@ const compartilharWhatsApp = (candidato) => {
 </script>
 
 <template>
-  <div class="space-y-6 relative pb-20">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+  <main class="space-y-6 relative pb-20">
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
-        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ tituloPagina }}</h1>
-        <p class="text-slate-500 text-sm mt-1">
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900" tabindex="0">
+          {{ tituloPagina }}
+        </h1>
+        <p class="text-slate-500 text-sm mt-1" aria-live="polite">
           <span v-if="!carregando" class="font-semibold text-blue-600"
-            >{{ candidatos.length }} candidatos encontrados</span
+            >{{ candidatosFiltrados.length }} candidatos encontrados</span
           >
           <span v-else>Carregando registros...</span>
         </p>
@@ -243,10 +310,12 @@ const compartilharWhatsApp = (candidato) => {
           v-if="candidatosFiltrados.length > 0"
           @click="atualizarTodosStatus"
           :disabled="atualizandoTodos"
-          class="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+          aria-label="Atualizar situação de todos os candidatos exibidos"
+          class="px-4 py-2 bg-slate-900 hover:bg-slate-800 focus:ring-4 focus:ring-slate-300 disabled:bg-slate-400 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2"
         >
           <svg
             v-if="atualizandoTodos"
+            aria-hidden="true"
             class="animate-spin h-4 w-4 text-white"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -268,6 +337,7 @@ const compartilharWhatsApp = (candidato) => {
           </svg>
           <svg
             v-else
+            aria-hidden="true"
             class="h-4 w-4 text-white"
             fill="none"
             stroke="currentColor"
@@ -283,20 +353,22 @@ const compartilharWhatsApp = (candidato) => {
           </svg>
           {{
             atualizandoTodos
-              ? `Atualizando ${progressoGlobal.atual}/${progressoGlobal.total}...`
-              : 'Checar Status de Todos'
+              ? `Sincronizando ${progressoGlobal.atual}/${progressoGlobal.total}...`
+              : 'Sincronizar Tela com TSE'
           }}
         </button>
 
         <div class="flex flex-col sm:flex-row gap-3">
           <input
             v-model="busca"
-            type="text"
+            type="search"
             placeholder="Buscar candidato..."
+            aria-label="Buscar candidato por nome"
             class="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm w-full sm:w-auto"
           />
           <select
             v-model="partidoSelecionado"
+            aria-label="Filtrar candidatos por partido"
             class="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-slate-700 w-full sm:w-auto"
           >
             <option value="">Todos os partidos</option>
@@ -306,23 +378,29 @@ const compartilharWhatsApp = (candidato) => {
           </select>
         </div>
       </div>
-    </div>
+    </header>
 
-    <div v-if="carregando" class="text-center py-20 bg-white rounded-2xl border border-slate-200">
+    <div
+      v-if="carregando"
+      class="text-center py-20 bg-white rounded-2xl border border-slate-200"
+      aria-live="assertive"
+    >
       <div
         class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+        aria-hidden="true"
       ></div>
       <p class="text-slate-500 font-medium text-sm">Carregando candidatos do banco de dados...</p>
     </div>
 
-    <div
+    <section
       v-else-if="candidatosFiltrados.length > 0"
       class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+      aria-label="Lista de Candidatos"
     >
-      <div
+      <article
         v-for="candidato in candidatosFiltrados"
         :key="candidato.id"
-        class="relative bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col justify-between"
+        class="relative bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col justify-between focus-within:ring-2 focus-within:ring-blue-400"
         :class="{ 'ring-4 ring-indigo-500 shadow-lg': isSelecionadoParaComparar(candidato) }"
       >
         <div class="p-6">
@@ -330,18 +408,11 @@ const compartilharWhatsApp = (candidato) => {
             class="relative mb-4 flex justify-center bg-slate-50 py-4 rounded-xl border border-slate-100"
             :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
-            <!-- FOTO COM O FALLBACK ORIGINAL E ESTÁVEL -->
             <img
               :src="candidato.fotoUrl"
-              :alt="candidato.nomeUrna"
+              :alt="`Foto oficial de urna do candidato ${candidato.nomeUrna}`"
               class="w-32 h-40 object-cover border border-slate-300 shadow-sm rounded"
-              @error="
-                (e) => {
-                  e.target.onerror = null
-                  e.target.src =
-                    'https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png'
-                }
-              "
+              @error="(e) => tratarErroFoto(e, candidato)"
             />
           </div>
 
@@ -349,26 +420,61 @@ const compartilharWhatsApp = (candidato) => {
             class="flex items-center space-x-4 mb-4"
             :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
-            <div>
+            <div class="w-full">
               <div class="flex items-center gap-2 mb-1">
                 <span
                   class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                  aria-label="Número de urna"
                   >Nº {{ candidato.numero }}</span
                 >
                 <span
-                  v-if="calcularIdade(candidato.dataDeNascimento)"
                   class="inline-block bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200"
-                  >{{ calcularIdade(candidato.dataDeNascimento) }}</span
+                  :aria-label="`Idade: ${calcularIdade(candidato.dataDeNascimento)}`"
                 >
+                  {{ calcularIdade(candidato.dataDeNascimento) }}
+                </span>
               </div>
               <h2 class="text-lg font-bold text-slate-900 leading-tight">
                 {{ candidato.nomeUrna }}
               </h2>
-              <p class="text-xs text-slate-500">{{ candidato.partido }}</p>
+              <p class="text-xs text-slate-500" :aria-label="`Partido: ${candidato.partido}`">
+                {{ candidato.partido }}
+              </p>
+
+              <div
+                v-if="['Presidente', 'Governador'].includes(candidato.cargo)"
+                class="mt-3 flex items-start gap-1.5 bg-indigo-50/50 border border-indigo-100 p-2 rounded-lg"
+                aria-label="Vice"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="w-4 h-4 text-indigo-500 mt-0.5 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  ></path>
+                </svg>
+                <p class="text-[10px] font-bold text-indigo-800 leading-tight">
+                  <span class="opacity-75 uppercase tracking-wider block mb-0.5">Vice:</span>
+                  <template v-if="candidato.vices && candidato.vices.length > 0">
+                    {{ candidato.vices.join(' • ') }}
+                  </template>
+                  <template v-else>
+                    <span class="italic opacity-70">Aguardando registro no TSE</span>
+                  </template>
+                </p>
+              </div>
             </div>
           </div>
 
-          <div class="space-y-2 mb-6">
+          <div class="space-y-2 mb-6" aria-live="polite">
             <div
               class="p-3 rounded-sm text-white transition-colors duration-300"
               :class="[
@@ -396,10 +502,12 @@ const compartilharWhatsApp = (candidato) => {
             <button
               @click="verificarStatusEmTempoReal(candidato)"
               :disabled="atualizandoId === candidato.id || atualizandoTodos"
-              class="w-full flex items-center justify-center gap-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-sm transition-all disabled:opacity-50 mt-1"
+              :aria-label="`Sincronizar dados completos de ${candidato.nomeUrna} no TSE`"
+              class="w-full flex items-center justify-center gap-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 focus:ring-2 focus:ring-slate-400 text-slate-700 py-2 rounded-sm transition-all disabled:opacity-50 mt-1"
             >
               <svg
                 v-if="atualizandoId === candidato.id"
+                aria-hidden="true"
                 class="animate-spin h-3.5 w-3.5 text-slate-700"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
@@ -421,6 +529,7 @@ const compartilharWhatsApp = (candidato) => {
               </svg>
               <svg
                 v-else
+                aria-hidden="true"
                 class="h-3.5 w-3.5 text-slate-700"
                 fill="none"
                 stroke="currentColor"
@@ -434,7 +543,7 @@ const compartilharWhatsApp = (candidato) => {
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 ></path>
               </svg>
-              {{ atualizandoId === candidato.id ? 'Consultando...' : 'Atualizar Situação' }}
+              {{ atualizandoId === candidato.id ? 'Baixando dados...' : 'Sincronizar Ficha' }}
             </button>
           </div>
 
@@ -483,44 +592,62 @@ const compartilharWhatsApp = (candidato) => {
           </div>
         </div>
 
-        <!-- GRUPO DE BOTÕES (AGORA SEM O BOTÃO 'ELEIÇÕES') -->
         <div
           class="bg-slate-50 px-4 py-3 border-t border-slate-100 flex flex-wrap gap-2"
           :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
         >
           <button
             @click="abrirModal(candidato, 'bens')"
-            class="flex-1 text-center py-2 px-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
+            :aria-label="`Ver bens de ${candidato.nomeUrna}`"
+            class="flex-1 text-center py-2 px-2 bg-white border border-slate-300 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
           >
             Bens
           </button>
 
           <button
             @click="abrirModal(candidato, 'raiox')"
-            class="flex-1 text-center py-2 px-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
+            :disabled="!isDeputadoCamara(candidato)"
+            :title="
+              !isDeputadoCamara(candidato)
+                ? 'Apenas para Deputados Federais em exercício'
+                : 'Ver Raio-X na Câmara'
+            "
+            :aria-label="`Ver Raio-X da câmara de ${candidato.nomeUrna}`"
+            class="flex-1 text-center py-2 px-2 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            :class="
+              isDeputadoCamara(candidato)
+                ? 'bg-slate-900 hover:bg-slate-800 text-white'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-60 border border-slate-200'
+            "
           >
             🏛️ Raio-X
           </button>
 
           <button
             @click="toggleComparacao(candidato)"
+            :aria-pressed="isSelecionadoParaComparar(candidato)"
+            :aria-label="
+              isSelecionadoParaComparar(candidato)
+                ? `Remover ${candidato.nomeUrna} da comparação`
+                : `Adicionar ${candidato.nomeUrna} para comparação`
+            "
             :class="
               isSelecionadoParaComparar(candidato)
                 ? 'bg-indigo-600 text-white border-indigo-600'
                 : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
             "
-            title="Selecionar para Comparar"
-            class="flex-none text-center py-2 px-3 border text-xs font-black rounded-xl transition-colors shadow-sm relative z-30"
+            class="flex-none text-center py-2 px-3 border text-xs font-black rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors shadow-sm relative z-30"
           >
             VS
           </button>
 
           <button
             @click="compartilharWhatsApp(candidato)"
-            title="Compartilhar no WhatsApp"
-            class="flex-none flex items-center justify-center py-2 px-3 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-sm relative z-30"
+            :aria-label="`Compartilhar ficha de ${candidato.nomeUrna} no WhatsApp`"
+            class="flex-none flex items-center justify-center py-2 px-3 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 text-white rounded-xl transition-colors shadow-sm relative z-30"
           >
             <svg
+              aria-hidden="true"
               class="w-4 h-4"
               fill="currentColor"
               viewBox="0 0 24 24"
@@ -532,10 +659,14 @@ const compartilharWhatsApp = (candidato) => {
             </svg>
           </button>
         </div>
-      </div>
-    </div>
+      </article>
+    </section>
 
-    <div v-else class="text-center py-16 bg-white rounded-2xl border border-slate-200">
+    <div
+      v-else
+      class="text-center py-16 bg-white rounded-2xl border border-slate-200"
+      aria-live="polite"
+    >
       <p class="text-slate-500 text-base">
         Nenhum candidato encontrado com os critérios selecionados.
       </p>
@@ -544,62 +675,72 @@ const compartilharWhatsApp = (candidato) => {
     <!-- Barra VS -->
     <div
       v-if="candidatosComparacao.length > 0"
+      role="region"
+      aria-label="Controle de Comparação"
       class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl z-40 flex items-center justify-between gap-6 animate-fade-in border border-slate-700 w-[90%] max-w-lg"
     >
       <div class="flex items-center gap-3">
         <span
           class="bg-indigo-500 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-inner border border-indigo-400"
+          aria-hidden="true"
           >{{ candidatosComparacao.length }}</span
         >
-        <span class="text-sm font-semibold tracking-wide">Selecionados</span>
+        <span class="text-sm font-semibold tracking-wide"
+          >{{ candidatosComparacao.length }} candidatos selecionados para comparar</span
+        >
       </div>
       <div class="flex gap-2">
         <button
           v-if="candidatosComparacao.length === 2"
           @click="abrirComparacao"
-          class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-lg ring-2 ring-indigo-500/50"
+          aria-label="Abrir janela de comparação direta"
+          class="bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-300 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-lg ring-2 ring-indigo-500/50"
         >
           Comparar Agora
         </button>
         <button
           @click="limparComparacao"
-          class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors border border-slate-600"
+          aria-label="Limpar lista de comparação"
+          class="bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors border border-slate-600"
         >
           Limpar
         </button>
       </div>
     </div>
-  </div>
+  </main>
 
-  <!-- MODAL DE DETALHES GERAIS -->
+  <!-- MODAL ACESSÍVEL -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-title"
   >
     <div
       class="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in"
     >
-      <div
+      <header
         class="p-5 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10"
       >
         <div>
-          <!-- TÍTULO DO MODAL ATUALIZADO -->
           <span class="text-[11px] font-bold uppercase tracking-wider text-blue-600 block">
             {{
               tipoModal === 'bens' ? 'Bens do Candidato' : 'Raio-X da Câmara (Atuação Parlamentar)'
             }}
           </span>
-          <h3 class="text-xl font-extrabold text-slate-900 mt-0.5">
+          <h3 id="modal-title" class="text-xl font-extrabold text-slate-900 mt-0.5" tabindex="-1">
             {{ candidatoAtivo.nomeUrna || candidatoAtivo.nome }}
           </h3>
         </div>
         <button
           @click="modalAberto = false"
-          class="text-slate-400 hover:text-slate-600 text-2xl font-bold px-2"
+          aria-label="Fechar janela"
+          class="text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded text-2xl font-bold px-2"
         >
           &times;
         </button>
-      </div>
+      </header>
 
       <div class="p-6 space-y-4">
         <div v-if="tipoModal === 'bens'">
@@ -614,25 +755,28 @@ const compartilharWhatsApp = (candidato) => {
             }}</span>
           </div>
           <div v-if="candidatoAtivo.bens && candidatoAtivo.bens.length > 0">
-            <div
-              v-for="(bem, i) in candidatoAtivo.bens"
-              :key="i"
-              class="border-b border-slate-100 pb-3 mb-3 last:border-0"
-            >
-              <p class="text-xs font-bold uppercase text-slate-400">{{ bem.tipo }}</p>
-              <p class="text-sm font-semibold text-slate-800 mt-0.5">{{ bem.descricao }}</p>
-              <p class="text-sm font-bold text-slate-900 mt-1">{{ formatarMoeda(bem.valor) }}</p>
-            </div>
+            <ul class="space-y-3">
+              <li
+                v-for="(bem, i) in candidatoAtivo.bens"
+                :key="i"
+                class="border-b border-slate-100 pb-3 last:border-0"
+              >
+                <p class="text-xs font-bold uppercase text-slate-400">{{ bem.tipo }}</p>
+                <p class="text-sm font-semibold text-slate-800 mt-0.5">{{ bem.descricao }}</p>
+                <p class="text-sm font-bold text-slate-900 mt-1">{{ formatarMoeda(bem.valor) }}</p>
+              </li>
+            </ul>
           </div>
           <div v-else class="text-center py-6 text-slate-400 text-sm">
             Nenhum detalhe de bem cadastrado.
           </div>
         </div>
 
-        <div v-if="tipoModal === 'raiox'">
+        <div v-if="tipoModal === 'raiox'" aria-live="polite">
           <div v-if="raioxLoading" class="text-center py-10">
             <div
               class="w-8 h-8 border-4 border-slate-800 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+              aria-hidden="true"
             ></div>
             <p class="text-sm font-bold text-slate-700">
               Conectando ao Portal de Dados Abertos da Câmara...
@@ -655,6 +799,7 @@ const compartilharWhatsApp = (candidato) => {
             <div class="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
               <img
                 :src="dadosRaioX.foto"
+                alt="Foto do deputado na câmara"
                 class="w-16 h-20 object-cover rounded-lg shadow-sm border border-slate-300"
               />
               <div>
@@ -670,7 +815,13 @@ const compartilharWhatsApp = (candidato) => {
               <p
                 class="text-xs uppercase tracking-wider text-rose-800 font-bold mb-1 flex items-center gap-2"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  aria-hidden="true"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -698,7 +849,7 @@ const compartilharWhatsApp = (candidato) => {
                 v-if="dadosRaioX.projetosRecentes && dadosRaioX.projetosRecentes.length > 0"
                 class="space-y-3"
               >
-                <div
+                <article
                   v-for="projeto in dadosRaioX.projetosRecentes"
                   :key="projeto.id"
                   class="bg-white border border-slate-200 p-3 rounded-lg hover:bg-slate-50 transition-colors"
@@ -712,7 +863,7 @@ const compartilharWhatsApp = (candidato) => {
                   >
                     {{ projeto.ementa }}
                   </p>
-                </div>
+                </article>
               </div>
               <p v-else class="text-xs text-slate-400">Nenhum projeto de lei recente encontrado.</p>
             </div>
@@ -726,36 +877,47 @@ const compartilharWhatsApp = (candidato) => {
   <div
     v-if="modalComparacaoAberto"
     class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="versus-title"
   >
     <div
       class="bg-slate-50 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in flex flex-col relative"
     >
-      <div
+      <header
         class="p-5 bg-slate-900 text-white flex justify-between items-center sticky top-0 z-10 border-b border-slate-700"
       >
         <div>
           <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 block"
             >Modo Versus</span
           >
-          <h3 class="text-xl font-black mt-0.5 flex items-center gap-2">Comparação Direta</h3>
+          <h3
+            id="versus-title"
+            class="text-xl font-black mt-0.5 flex items-center gap-2"
+            tabindex="-1"
+          >
+            Comparação Direta
+          </h3>
         </div>
         <button
           @click="modalComparacaoAberto = false"
-          class="text-slate-400 hover:text-white text-2xl font-bold px-2"
+          aria-label="Fechar janela de comparação"
+          class="text-slate-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400 rounded text-2xl font-bold px-2"
         >
           &times;
         </button>
-      </div>
+      </header>
 
       <div class="p-4 md:p-8 flex-grow">
         <div class="grid grid-cols-2 gap-4 md:gap-8 relative">
           <div
+            aria-hidden="true"
             class="absolute left-1/2 top-24 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-black italic shadow-xl z-20 text-xs md:text-base border-4 border-slate-50"
           >
             VS
           </div>
 
-          <div
+          <article
             v-for="(cand, idx) in candidatosComparacao"
             :key="cand.id"
             class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col relative z-10"
@@ -763,9 +925,9 @@ const compartilharWhatsApp = (candidato) => {
             <div
               class="bg-slate-100 rounded-t-2xl p-4 border-b border-slate-200 flex flex-col items-center justify-center relative h-48"
             >
-              <!-- FOTO COM O FALLBACK ORIGINAL -->
               <img
                 :src="cand.fotoUrl"
+                :alt="`Foto oficial de ${cand.nomeUrna}`"
                 class="w-24 h-32 object-cover rounded-xl shadow-md border-2 border-white mb-3"
                 @error="
                   (e) => {
@@ -775,9 +937,9 @@ const compartilharWhatsApp = (candidato) => {
                   }
                 "
               />
-
               <span
                 class="bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider absolute top-4 left-4"
+                aria-label="Número de urna"
                 >Nº {{ cand.numero }}</span
               >
             </div>
@@ -788,8 +950,21 @@ const compartilharWhatsApp = (candidato) => {
                   {{ cand.nomeUrna }}
                 </h4>
                 <p class="text-sm font-bold text-slate-500">{{ cand.partido }}</p>
-                <p class="text-xs text-slate-400 mt-1">
-                  {{ calcularIdade(cand.dataDeNascimento) || 'Idade não informada' }}
+
+                <div
+                  v-if="['Presidente', 'Governador'].includes(cand.cargo)"
+                  class="mt-2 bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-1 rounded mx-auto inline-block"
+                >
+                  <template v-if="cand.vices && cand.vices.length > 0">
+                    Vice: {{ cand.vices.join(' e ') }}
+                  </template>
+                  <template v-else>
+                    Vice: <span class="italic opacity-70">Aguardando TSE</span>
+                  </template>
+                </div>
+
+                <p class="text-xs text-slate-400 mt-2">
+                  {{ calcularIdade(cand.dataDeNascimento) }}
                 </p>
               </div>
               <div>
@@ -830,7 +1005,7 @@ const compartilharWhatsApp = (candidato) => {
                 </p>
               </div>
             </div>
-          </div>
+          </article>
         </div>
       </div>
     </div>

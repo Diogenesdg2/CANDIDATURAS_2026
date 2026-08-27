@@ -1,4 +1,13 @@
-import { collection, getDocs, addDoc, query, where, doc, updateDoc } from 'firebase/firestore'
+import {
+  collection,
+  getDocs,
+  addDoc,
+  query,
+  where,
+  doc,
+  updateDoc,
+  getDoc,
+} from 'firebase/firestore'
 import { db } from './config'
 
 const candidatosCollection = collection(db, 'candidatos')
@@ -51,6 +60,33 @@ const CARGOS = {
   10: '2º Suplente',
 }
 
+// ------------------------------------------------------------------
+// CAÇADOR SUPREMO DE VICES
+// ------------------------------------------------------------------
+const cacarVicesTSE = (detalhes) => {
+  let nomesEncontrados = []
+
+  const extrair = (obj) => {
+    if (!obj) return
+    // Procura por qualquer variável que os Proxies costumam usar
+    const nome = obj.nmUrna || obj.nomeUrna || obj.nmCandidato || obj.nomeCandidato || obj.nome
+    if (nome) nomesEncontrados.push(nome)
+  }
+
+  // Tenta achar em todas as "gavetas" possíveis
+  if (Array.isArray(detalhes.vices)) detalhes.vices.forEach(extrair)
+  if (Array.isArray(detalhes.suplentes)) detalhes.suplentes.forEach(extrair)
+  if (Array.isArray(detalhes.substitutos)) detalhes.substitutos.forEach(extrair)
+
+  if (detalhes.viceCandidato) extrair(detalhes.viceCandidato)
+  if (detalhes.vice) {
+    if (Array.isArray(detalhes.vice)) detalhes.vice.forEach(extrair)
+    else extrair(detalhes.vice)
+  }
+
+  return [...new Set(nomesEncontrados)]
+}
+
 export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgresso) => {
   try {
     const q = query(
@@ -91,11 +127,10 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       let situacaoCand = 'Não informado'
       let situacaoPartido = 'Não informado'
       let dataNascimento = null
-
-      // NOVAS VARIÁVEIS DEMOGRÁFICAS
       let genero = 'Não informado'
       let corRaca = 'Não informado'
       let grauInstrucao = 'Não informado'
+      let listaVices = []
 
       let fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO}/${cand.id}/${uf}`
 
@@ -111,11 +146,11 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
           situacaoCand = detalhes.descricaoSituacao || 'Não informado'
           situacaoPartido = detalhes.candidato?.situacaoCandidato || 'Não informado'
           dataNascimento = detalhes.dataDeNascimento || detalhes.dataNascimento || null
-
-          // CAPTURANDO OS DADOS DEMOGRÁFICOS DO TSE
           genero = detalhes.descricaoSexo || 'Não informado'
           corRaca = detalhes.descricaoCorRaca || 'Não informado'
           grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
+
+          listaVices = cacarVicesTSE(detalhes)
 
           const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
           fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
@@ -160,9 +195,10 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         situacaoCandidatura: situacaoCand,
         situacaoPartido: situacaoPartido,
         dataDeNascimento: dataNascimento,
-        genero: genero, // Salvando
-        corRaca: corRaca, // Salvando
-        grauInstrucao: grauInstrucao, // Salvando
+        genero: genero,
+        corRaca: corRaca,
+        grauInstrucao: grauInstrucao,
+        vices: listaVices,
         fotoUrl: fotoOficialUrl,
         ano: ANO,
       })
@@ -180,21 +216,56 @@ export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) =
     if (!respostaDetalhes.ok) throw new Error('Falha ao comunicar com o TSE')
 
     const detalhes = await respostaDetalhes.json()
+
     const novaSitCand = detalhes.descricaoSituacao || 'Não informado'
     const novaSitPart = detalhes.candidato?.situacaoCandidato || 'Não informado'
+    const totalBens = detalhes.totalDeBens || 0
+    const bens = detalhes.bens || []
+    const limiteGastos1T = detalhes.gastoCampanha1T || 0
+    const limiteGastos2T = detalhes.gastoCampanha2T || 0
+    const dataDeNascimento = detalhes.dataDeNascimento || detalhes.dataNascimento || null
+    const genero = detalhes.descricaoSexo || 'Não informado'
+    const corRaca = detalhes.descricaoCorRaca || 'Não informado'
+    const grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
+
+    const vicesCacados = cacarVicesTSE(detalhes)
+    let vicesFinais = vicesCacados
 
     const docRef = doc(db, 'candidatos', candidatoFirebaseId)
-    await updateDoc(docRef, { situacaoCandidatura: novaSitCand, situacaoPartido: novaSitPart })
 
-    return { situacaoCandidatura: novaSitCand, situacaoPartido: novaSitPart }
+    // O ESCUDO DE PROTEÇÃO: Se a API não achar o vice, mas você já tiver digitado/salvo no banco, ele NÃO APAGA.
+    if (vicesCacados.length === 0) {
+      const docSnap = await getDoc(docRef)
+      if (docSnap.exists()) {
+        const dadosAntigos = docSnap.data()
+        if (dadosAntigos.vices && dadosAntigos.vices.length > 0) {
+          vicesFinais = dadosAntigos.vices
+        }
+      }
+    }
+
+    const dadosAtualizados = {
+      situacaoCandidatura: novaSitCand,
+      situacaoPartido: novaSitPart,
+      totalBens: totalBens,
+      bens: bens,
+      limiteGastos1T: limiteGastos1T,
+      limiteGastos2T: limiteGastos2T,
+      dataDeNascimento: dataDeNascimento,
+      genero: genero,
+      corRaca: corRaca,
+      grauInstrucao: grauInstrucao,
+      vices: vicesFinais,
+    }
+
+    await updateDoc(docRef, dadosAtualizados)
+    return dadosAtualizados
   } catch (error) {
-    console.error('Erro ao atualizar status:', error)
+    console.error('Erro ao atualizar dados:', error)
     throw error
   }
 }
-// ==========================================
-// INTEGRAÇÃO COM A CÂMARA DOS DEPUTADOS (RAIO-X)
-// ==========================================
+
 export const buscarRaioXCamara = async (nomeBusca, uf) => {
   try {
     const nomeEncode = encodeURIComponent(nomeBusca)
@@ -202,26 +273,22 @@ export const buscarRaioXCamara = async (nomeBusca, uf) => {
       `https://dadosabertos.camara.leg.br/api/v2/deputados?nome=${nomeEncode}&siglaUf=${uf}`,
     )
     const data = await res.json()
-
     if (!data.dados || data.dados.length === 0) return null
 
     const deputado = data.dados[0]
     const id = deputado.id
 
-    // Busca Despesas
     const resDespesas = await fetch(
       `https://dadosabertos.camara.leg.br/api/v2/deputados/${id}/despesas?ordem=DESC&ordenarPor=ano&itens=100`,
     )
     const dataDespesas = await resDespesas.json()
     const totalGasto = dataDespesas.dados.reduce((acc, despesa) => acc + despesa.valorDocumento, 0)
 
-    // Busca Projetos
     const resProjetos = await fetch(
       `https://dadosabertos.camara.leg.br/api/v2/proposicoes?idDeputadoAutor=${id}&ordem=DESC&ordenarPor=id&itens=5`,
     )
     const dataProjetos = await resProjetos.json()
 
-    // RETORNO CORRIGIDO PARA BATER COM A TELA VUE
     return {
       encontrado: true,
       nome: deputado.nome,
