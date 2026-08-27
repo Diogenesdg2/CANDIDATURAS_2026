@@ -112,12 +112,14 @@ const formatarMoeda = (valor) => {
 }
 
 const categorizarBens = (listaDeBens, totalGeral) => {
-  if (!listaDeBens || listaDeBens.length === 0 || totalGeral === 0) return null
+  if (!listaDeBens || !Array.isArray(listaDeBens) || listaDeBens.length === 0 || totalGeral === 0)
+    return null
 
   let categorias = {
     imoveis: { valor: 0, cor: 'bg-emerald-500', label: 'Imóveis' },
     investimentos: { valor: 0, cor: 'bg-blue-500', label: 'Investimentos & Dinheiro' },
     veiculos: { valor: 0, cor: 'bg-amber-500', label: 'Veículos' },
+    animais: { valor: 0, cor: 'bg-orange-600', label: 'Animais & Rebanho' }, // NOVA CATEGORIA!
     empresas: { valor: 0, cor: 'bg-purple-500', label: 'Empresas & Outros' },
   }
 
@@ -127,43 +129,111 @@ const categorizarBens = (listaDeBens, totalGeral) => {
     const textoCompleto = desc + ' ' + tipo
     const valor = bem.valor || 0
 
+    // 1. REGRAS DE IMÓVEIS
     if (
       textoCompleto.includes('apartamento') ||
       textoCompleto.includes('casa') ||
       textoCompleto.includes('terreno') ||
       textoCompleto.includes('terra') ||
+      textoCompleto.includes('imovel') ||
       textoCompleto.includes('imóvel') ||
       textoCompleto.includes('sala') ||
       textoCompleto.includes('fazenda') ||
       textoCompleto.includes('lote') ||
-      textoCompleto.includes('gleba')
+      textoCompleto.includes('gleba') ||
+      textoCompleto.includes('predio') ||
+      textoCompleto.includes('prédio') ||
+      textoCompleto.includes('chacara') ||
+      textoCompleto.includes('chácara') ||
+      textoCompleto.includes('rural') ||
+      textoCompleto.includes('urbano') ||
+      textoCompleto.includes('sitio') ||
+      textoCompleto.includes('sítio')
     ) {
       categorias.imoveis.valor += valor
-    } else if (
+    }
+    // 2. REGRAS DE VEÍCULOS
+    else if (
       textoCompleto.includes('veículo') ||
+      textoCompleto.includes('veiculo') ||
       textoCompleto.includes('carro') ||
       textoCompleto.includes('moto') ||
       textoCompleto.includes('caminhonete') ||
-      textoCompleto.includes('embarcação') ||
+      textoCompleto.includes('caminhao') ||
+      textoCompleto.includes('caminhão') ||
+      textoCompleto.includes('embarcacao') ||
       textoCompleto.includes('lancha') ||
-      textoCompleto.includes('aeronave')
+      textoCompleto.includes('aeronave') ||
+      textoCompleto.includes('kombi') ||
+      textoCompleto.includes('golf') ||
+      textoCompleto.includes('creta') ||
+      textoCompleto.includes('omega') ||
+      textoCompleto.includes('honda') ||
+      textoCompleto.includes('toyota') ||
+      textoCompleto.includes('fiat') ||
+      textoCompleto.includes('volkswagen') ||
+      textoCompleto.includes('chevrolet') ||
+      textoCompleto.includes('ford') ||
+      textoCompleto.includes('hyundai') ||
+      textoCompleto.includes('jeep') ||
+      textoCompleto.includes('hilux') ||
+      textoCompleto.includes('corolla') ||
+      textoCompleto.includes('onix') ||
+      textoCompleto.includes('strada') ||
+      textoCompleto.includes('bis')
     ) {
       categorias.veiculos.valor += valor
-    } else if (
+    }
+    // 3. REGRAS DE ANIMAIS & REBANHO (CAVALOS, GADO, ETC)
+    else if (
+      textoCompleto.includes('cavalo') ||
+      textoCompleto.includes('égua') ||
+      textoCompleto.includes('egua') ||
+      textoCompleto.includes('potro') ||
+      textoCompleto.includes('mula') ||
+      textoCompleto.includes('boi') ||
+      textoCompleto.includes('vaca') ||
+      textoCompleto.includes('gado') ||
+      textoCompleto.includes('rebanho') ||
+      textoCompleto.includes('animal') ||
+      textoCompleto.includes('mangalarga') ||
+      textoCompleto.includes('quartilha') ||
+      textoCompleto.includes('touro')
+    ) {
+      categorias.animais.valor += valor
+    }
+    // 4. REGRAS DE INVESTIMENTOS & DINHEIRO
+    else if (
+      textoCompleto.includes('poupanca') ||
       textoCompleto.includes('poupança') ||
+      textoCompleto.includes('aplicacao') ||
       textoCompleto.includes('aplicação') ||
       textoCompleto.includes('fundo') ||
+      textoCompleto.includes('acoes') ||
       textoCompleto.includes('ações') ||
       textoCompleto.includes('cdb') ||
       textoCompleto.includes('dinheiro') ||
+      textoCompleto.includes('especie') ||
       textoCompleto.includes('espécie') ||
       textoCompleto.includes('conta') ||
+      textoCompleto.includes('deposito') ||
       textoCompleto.includes('depósito') ||
       textoCompleto.includes('renda fixa') ||
-      textoCompleto.includes('tesouro')
+      textoCompleto.includes('tesouro') ||
+      textoCompleto.includes('consorcio') ||
+      textoCompleto.includes('consórcio') ||
+      textoCompleto.includes('banco') ||
+      textoCompleto.includes('bco') ||
+      textoCompleto.includes('bradesco') ||
+      textoCompleto.includes('brasil') ||
+      textoCompleto.includes('itau') ||
+      textoCompleto.includes('santander') ||
+      textoCompleto.includes('caixa')
     ) {
       categorias.investimentos.valor += valor
-    } else {
+    }
+    // 5. TUDO O RESTO (EMPRESAS, QUOTAS, CAPITAL SOCIAL, ETC)
+    else {
       categorias.empresas.valor += valor
     }
   })
