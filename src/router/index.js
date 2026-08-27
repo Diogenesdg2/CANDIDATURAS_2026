@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue'
 import CandidatosView from '../views/CandidatosView.vue'
 import AnalisesView from '../views/AnalisesView.vue'
 import AcessibilidadeView from '../views/AcessibilidadeView.vue'
+import VotacaoView from '../views/VotacaoView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -24,9 +25,14 @@ const router = createRouter({
     },
 
     {
-      path: '/acessibilidade', // <--- Registrar a nova rota
+      path: '/acessibilidade',
       name: 'acessibilidade',
-      component: AcessibilidadeView, // <--- Certifique-se de importar o componente correto
+      component: AcessibilidadeView,
+    },
+    {
+      path: '/votacao',
+      name: 'votacao',
+      component: VotacaoView,
     },
   ],
 })

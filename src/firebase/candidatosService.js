@@ -1,4 +1,15 @@
-import { collection, getDocs, addDoc, query, where, doc, updateDoc } from 'firebase/firestore'
+import {
+  collection,
+  getDocs,
+  addDoc,
+  query,
+  where,
+  doc,
+  updateDoc,
+  setDoc,
+  getDoc,
+  increment,
+} from 'firebase/firestore'
 import { db } from './config'
 
 const candidatosCollection = collection(db, 'candidatos')
@@ -280,5 +291,57 @@ export const buscarRaioXCamara = async (nomeBusca, uf) => {
   } catch (e) {
     console.error('Erro ao buscar dados na Câmara:', e)
     return null
+  }
+}
+// ====================================================
+// MÓDULO DE VOTAÇÃO (ENQUETE)
+// ====================================================
+
+export const registrarVoto = async (candidatoId, nomeUrna, partido, fotoUrl) => {
+  try {
+    const votoRef = doc(db, 'enquete_presidente', candidatoId)
+    const votoSnap = await getDoc(votoRef)
+
+    // Se o candidato já tem votos, soma +1 de forma segura (increment)
+    if (votoSnap.exists()) {
+      await updateDoc(votoRef, { totalVotos: increment(1) })
+    } else {
+      // Se é o primeiro voto dele, cria o registro
+      await setDoc(votoRef, {
+        nomeUrna,
+        partido,
+        fotoUrl,
+        totalVotos: 1,
+      })
+    }
+    return true
+  } catch (error) {
+    console.error('Erro ao registrar voto:', error)
+    return false
+  }
+}
+
+export const buscarResultadosEnquete = async () => {
+  try {
+    const q = query(collection(db, 'enquete_presidente'))
+    const snapshot = await getDocs(q)
+
+    let resultados = []
+    let totalGeral = 0
+
+    snapshot.forEach((doc) => {
+      const data = doc.data()
+      resultados.push({ id: doc.id, ...data })
+      totalGeral += data.totalVotos || 0
+    })
+
+    // Retorna ordenado do mais votado para o menos votado
+    return {
+      resultados: resultados.sort((a, b) => b.totalVotos - a.totalVotos),
+      totalGeral,
+    }
+  } catch (error) {
+    console.error('Erro ao buscar resultados:', error)
+    return { resultados: [], totalGeral: 0 }
   }
 }
