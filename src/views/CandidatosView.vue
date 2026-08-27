@@ -167,16 +167,11 @@ const calcularIdade = (dataStr) => {
   return 'Idade N/I'
 }
 
-// ----------------------------------------------------
-// ATUALIZAÇÃO FORÇADA DE TELA (REATIVIDADE DO VUE)
-// ----------------------------------------------------
 const verificarStatusEmTempoReal = async (candidato) => {
   if (atualizandoTodos.value) return
   atualizandoId.value = candidato.id
   try {
     const novosDados = await atualizarStatusCandidato(candidato.id, candidato.idTse, candidato.uf)
-
-    // Injetamos chave por chave para forçar o Vue a piscar a tela
     candidato.situacaoCandidatura = novosDados.situacaoCandidatura
     candidato.situacaoPartido = novosDados.situacaoPartido
     candidato.totalBens = novosDados.totalBens
@@ -184,7 +179,7 @@ const verificarStatusEmTempoReal = async (candidato) => {
     candidato.limiteGastos1T = novosDados.limiteGastos1T
     candidato.limiteGastos2T = novosDados.limiteGastos2T
     candidato.dataDeNascimento = novosDados.dataDeNascimento
-    candidato.vices = [...novosDados.vices] // Clonamos a lista de vices para ele desenhar na tela!
+    candidato.vices = [...novosDados.vices]
   } catch (error) {
     alert('Não foi possível sincronizar com o TSE no momento.')
   } finally {
@@ -278,7 +273,7 @@ const compartilharWhatsApp = (candidato) => {
     if (candidato.vices && candidato.vices.length > 0) {
       textoVice = `*Vice:* ${candidato.vices.join(' e ')}\n`
     } else {
-      textoVice = `*Vice:* Aguardando registro no TSE\n`
+      textoVice = `*Vice:* Aguardando liberação da documentação oficial pelo TSE\n`
     }
   }
 
@@ -441,6 +436,7 @@ const compartilharWhatsApp = (candidato) => {
                 {{ candidato.partido }}
               </p>
 
+              <!-- BLOCO DO VICE COM AVISO DE TRANSPARÊNCIA -->
               <div
                 v-if="['Presidente', 'Governador'].includes(candidato.cargo)"
                 class="mt-3 flex items-start gap-1.5 bg-indigo-50/50 border border-indigo-100 p-2 rounded-lg"
@@ -461,15 +457,21 @@ const compartilharWhatsApp = (candidato) => {
                     d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                   ></path>
                 </svg>
-                <p class="text-[10px] font-bold text-indigo-800 leading-tight">
-                  <span class="opacity-75 uppercase tracking-wider block mb-0.5">Vice:</span>
-                  <template v-if="candidato.vices && candidato.vices.length > 0">
-                    {{ candidato.vices.join(' • ') }}
-                  </template>
-                  <template v-else>
-                    <span class="italic opacity-70">Aguardando registro no TSE</span>
-                  </template>
-                </p>
+                <div class="flex-grow">
+                  <p class="text-[10px] font-bold text-indigo-800 leading-tight">
+                    <span class="opacity-75 uppercase tracking-wider block mb-0.5">Vice:</span>
+                    <template v-if="candidato.vices && candidato.vices.length > 0">
+                      {{ candidato.vices.join(' • ') }}
+                    </template>
+                    <template v-else>
+                      <!-- TEXTO PROFISSIONAL CASO O TSE AINDA NÃO TENHA LIBERADO -->
+                      <span class="italic opacity-70 block mt-0.5 leading-snug">
+                        O TSE ainda não processou a documentação. A informação oficial do vice está
+                        indisponível no momento.
+                      </span>
+                    </template>
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -951,15 +953,16 @@ const compartilharWhatsApp = (candidato) => {
                 </h4>
                 <p class="text-sm font-bold text-slate-500">{{ cand.partido }}</p>
 
+                <!-- NOME DO VICE NO VERSUS COM O AVISO CLARO -->
                 <div
                   v-if="['Presidente', 'Governador'].includes(cand.cargo)"
-                  class="mt-2 bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-1 rounded mx-auto inline-block"
+                  class="mt-2 bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-1 rounded mx-auto inline-flex items-center gap-1 max-w-[90%] text-center"
                 >
                   <template v-if="cand.vices && cand.vices.length > 0">
                     Vice: {{ cand.vices.join(' e ') }}
                   </template>
                   <template v-else>
-                    Vice: <span class="italic opacity-70">Aguardando TSE</span>
+                    Vice: <span class="italic opacity-70">Aguardando doc. oficial do TSE</span>
                   </template>
                 </div>
 

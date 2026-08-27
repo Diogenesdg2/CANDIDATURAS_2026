@@ -1,13 +1,4 @@
-import {
-  collection,
-  getDocs,
-  addDoc,
-  query,
-  where,
-  doc,
-  updateDoc,
-  getDoc,
-} from 'firebase/firestore'
+import { collection, getDocs, addDoc, query, where, doc, updateDoc } from 'firebase/firestore'
 import { db } from './config'
 
 const candidatosCollection = collection(db, 'candidatos')
@@ -60,20 +51,21 @@ const CARGOS = {
   10: '2º Suplente',
 }
 
-// ------------------------------------------------------------------
-// CAÇADOR SUPREMO DE VICES
-// ------------------------------------------------------------------
 const cacarVicesTSE = (detalhes) => {
   let nomesEncontrados = []
 
   const extrair = (obj) => {
     if (!obj) return
-    // Procura por qualquer variável que os Proxies costumam usar
-    const nome = obj.nmUrna || obj.nomeUrna || obj.nmCandidato || obj.nomeCandidato || obj.nome
+    const nome =
+      obj.nmUrna ||
+      obj.nomeUrna ||
+      obj.nmCandidato ||
+      obj.nomeCandidato ||
+      obj.nome ||
+      obj.nmUrnaCandidato
     if (nome) nomesEncontrados.push(nome)
   }
 
-  // Tenta achar em todas as "gavetas" possíveis
   if (Array.isArray(detalhes.vices)) detalhes.vices.forEach(extrair)
   if (Array.isArray(detalhes.suplentes)) detalhes.suplentes.forEach(extrair)
   if (Array.isArray(detalhes.substitutos)) detalhes.substitutos.forEach(extrair)
@@ -229,20 +221,6 @@ export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) =
     const grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
 
     const vicesCacados = cacarVicesTSE(detalhes)
-    let vicesFinais = vicesCacados
-
-    const docRef = doc(db, 'candidatos', candidatoFirebaseId)
-
-    // O ESCUDO DE PROTEÇÃO: Se a API não achar o vice, mas você já tiver digitado/salvo no banco, ele NÃO APAGA.
-    if (vicesCacados.length === 0) {
-      const docSnap = await getDoc(docRef)
-      if (docSnap.exists()) {
-        const dadosAntigos = docSnap.data()
-        if (dadosAntigos.vices && dadosAntigos.vices.length > 0) {
-          vicesFinais = dadosAntigos.vices
-        }
-      }
-    }
 
     const dadosAtualizados = {
       situacaoCandidatura: novaSitCand,
@@ -255,10 +233,12 @@ export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) =
       genero: genero,
       corRaca: corRaca,
       grauInstrucao: grauInstrucao,
-      vices: vicesFinais,
+      vices: vicesCacados, // Sincroniza apenas com os dados oficiais do TSE
     }
 
+    const docRef = doc(db, 'candidatos', candidatoFirebaseId)
     await updateDoc(docRef, dadosAtualizados)
+
     return dadosAtualizados
   } catch (error) {
     console.error('Erro ao atualizar dados:', error)
