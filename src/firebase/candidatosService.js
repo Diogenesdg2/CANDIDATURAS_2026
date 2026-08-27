@@ -192,3 +192,46 @@ export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) =
     throw error
   }
 }
+// ==========================================
+// INTEGRAÇÃO COM A CÂMARA DOS DEPUTADOS (RAIO-X)
+// ==========================================
+export const buscarRaioXCamara = async (nomeBusca, uf) => {
+  try {
+    const nomeEncode = encodeURIComponent(nomeBusca)
+    const res = await fetch(
+      `https://dadosabertos.camara.leg.br/api/v2/deputados?nome=${nomeEncode}&siglaUf=${uf}`,
+    )
+    const data = await res.json()
+
+    if (!data.dados || data.dados.length === 0) return null
+
+    const deputado = data.dados[0]
+    const id = deputado.id
+
+    // Busca Despesas
+    const resDespesas = await fetch(
+      `https://dadosabertos.camara.leg.br/api/v2/deputados/${id}/despesas?ordem=DESC&ordenarPor=ano&itens=100`,
+    )
+    const dataDespesas = await resDespesas.json()
+    const totalGasto = dataDespesas.dados.reduce((acc, despesa) => acc + despesa.valorDocumento, 0)
+
+    // Busca Projetos
+    const resProjetos = await fetch(
+      `https://dadosabertos.camara.leg.br/api/v2/proposicoes?idDeputadoAutor=${id}&ordem=DESC&ordenarPor=id&itens=5`,
+    )
+    const dataProjetos = await resProjetos.json()
+
+    // RETORNO CORRIGIDO PARA BATER COM A TELA VUE
+    return {
+      encontrado: true,
+      nome: deputado.nome,
+      foto: deputado.urlFoto,
+      partido: deputado.siglaPartido,
+      gasto2026: totalGasto,
+      projetosRecentes: dataProjetos.dados,
+    }
+  } catch (e) {
+    console.error('Erro ao buscar dados na Câmara:', e)
+    return null
+  }
+}
