@@ -55,7 +55,7 @@ const categorizarBens = (listaDeBens, totalGeral) => {
     imoveis: { valor: 0, cor: 'bg-emerald-500', label: 'Imóveis' },
     investimentos: { valor: 0, cor: 'bg-blue-500', label: 'Investimentos & Dinheiro' },
     veiculos: { valor: 0, cor: 'bg-amber-500', label: 'Veículos' },
-    animais: { valor: 0, cor: 'bg-orange-600', label: 'Animais & Rebanho' }, // NOVA CATEGORIA!
+    animais: { valor: 0, cor: 'bg-orange-600', label: 'Animais & Rebanho' },
     empresas: { valor: 0, cor: 'bg-purple-500', label: 'Empresas & Outros' },
   }
 
@@ -65,7 +65,6 @@ const categorizarBens = (listaDeBens, totalGeral) => {
     const textoCompleto = desc + ' ' + tipo
     const valor = bem.valor || 0
 
-    // 1. REGRAS DE IMÓVEIS
     if (
       textoCompleto.includes('apartamento') ||
       textoCompleto.includes('casa') ||
@@ -87,9 +86,7 @@ const categorizarBens = (listaDeBens, totalGeral) => {
       textoCompleto.includes('sítio')
     ) {
       categorias.imoveis.valor += valor
-    }
-    // 2. REGRAS DE VEÍCULOS
-    else if (
+    } else if (
       textoCompleto.includes('veículo') ||
       textoCompleto.includes('veiculo') ||
       textoCompleto.includes('carro') ||
@@ -102,6 +99,8 @@ const categorizarBens = (listaDeBens, totalGeral) => {
       textoCompleto.includes('aeronave') ||
       textoCompleto.includes('kombi') ||
       textoCompleto.includes('golf') ||
+      textoCompleto.includes('up') ||
+      textoCompleto.includes('UP') ||
       textoCompleto.includes('creta') ||
       textoCompleto.includes('omega') ||
       textoCompleto.includes('honda') ||
@@ -119,9 +118,7 @@ const categorizarBens = (listaDeBens, totalGeral) => {
       textoCompleto.includes('bis')
     ) {
       categorias.veiculos.valor += valor
-    }
-    // 3. REGRAS DE ANIMAIS & REBANHO (CAVALOS, GADO, ETC)
-    else if (
+    } else if (
       textoCompleto.includes('cavalo') ||
       textoCompleto.includes('égua') ||
       textoCompleto.includes('egua') ||
@@ -137,9 +134,7 @@ const categorizarBens = (listaDeBens, totalGeral) => {
       textoCompleto.includes('touro')
     ) {
       categorias.animais.valor += valor
-    }
-    // 4. REGRAS DE INVESTIMENTOS & DINHEIRO
-    else if (
+    } else if (
       textoCompleto.includes('poupanca') ||
       textoCompleto.includes('poupança') ||
       textoCompleto.includes('aplicacao') ||
@@ -167,9 +162,7 @@ const categorizarBens = (listaDeBens, totalGeral) => {
       textoCompleto.includes('caixa')
     ) {
       categorias.investimentos.valor += valor
-    }
-    // 5. TUDO O RESTO (EMPRESAS, QUOTAS, CAPITAL SOCIAL, ETC)
-    else {
+    } else {
       categorias.empresas.valor += valor
     }
   })
@@ -272,7 +265,8 @@ onMounted(async () => {
 })
 
 const isDeputadoCamara = (candidato) => {
-  if (deputadosAtuais.value.length === 0) return true
+  if (deputadosAtuais.value.length === 0) return false
+
   const normalizar = (str) =>
     str
       ? str
@@ -438,14 +432,14 @@ const compartilharWhatsApp = (candidato) => {
 </script>
 
 <template>
-  <main class="space-y-6 relative pb-20">
+  <main class="space-y-6 relative pb-20 transition-colors duration-300">
     <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
-        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900" tabindex="0">
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white" tabindex="0">
           {{ tituloPagina }}
         </h1>
-        <p class="text-slate-500 text-sm mt-1" aria-live="polite">
-          <span v-if="!carregando" class="font-semibold text-blue-600"
+        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1" aria-live="polite">
+          <span v-if="!carregando" class="font-semibold text-blue-600 dark:text-blue-400"
             >{{ candidatosFiltrados.length }} candidatos encontrados</span
           >
           <span v-else>Carregando registros...</span>
@@ -458,7 +452,7 @@ const compartilharWhatsApp = (candidato) => {
           @click="atualizarTodosStatus"
           :disabled="atualizandoTodos"
           aria-label="Atualizar situação de todos os candidatos exibidos"
-          class="px-4 py-2 bg-slate-900 hover:bg-slate-800 focus:ring-4 focus:ring-slate-300 disabled:bg-slate-400 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+          class="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 focus:ring-4 focus:ring-slate-300 dark:focus:ring-slate-600 disabled:bg-slate-400 dark:disabled:bg-slate-800 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2"
         >
           <svg
             v-if="atualizandoTodos"
@@ -511,12 +505,12 @@ const compartilharWhatsApp = (candidato) => {
             type="search"
             placeholder="Buscar candidato..."
             aria-label="Buscar candidato por nome"
-            class="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm w-full sm:w-auto"
+            class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm w-full sm:w-auto transition-colors"
           />
           <select
             v-model="partidoSelecionado"
             aria-label="Filtrar candidatos por partido"
-            class="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-slate-700 w-full sm:w-auto"
+            class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm w-full sm:w-auto transition-colors"
           >
             <option value="">Todos os partidos</option>
             <option v-for="partido in partidos" :key="partido" :value="partido">
@@ -529,14 +523,16 @@ const compartilharWhatsApp = (candidato) => {
 
     <div
       v-if="carregando"
-      class="text-center py-20 bg-white rounded-2xl border border-slate-200"
+      class="text-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors"
       aria-live="assertive"
     >
       <div
-        class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+        class="w-10 h-10 border-4 border-blue-600 dark:border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"
         aria-hidden="true"
       ></div>
-      <p class="text-slate-500 font-medium text-sm">Carregando candidatos do banco de dados...</p>
+      <p class="text-slate-500 dark:text-slate-400 font-medium text-sm">
+        Carregando candidatos do banco de dados...
+      </p>
     </div>
 
     <section
@@ -547,18 +543,18 @@ const compartilharWhatsApp = (candidato) => {
       <article
         v-for="candidato in candidatosFiltrados"
         :key="candidato.id"
-        class="relative bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col justify-between focus-within:ring-2 focus-within:ring-blue-400"
+        class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-md dark:hover:shadow-slate-800/50 transition-all border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col justify-between focus-within:ring-2 focus-within:ring-blue-400"
         :class="{ 'ring-4 ring-indigo-500 shadow-lg': isSelecionadoParaComparar(candidato) }"
       >
         <div class="p-6">
           <div
-            class="relative mb-4 flex justify-center bg-slate-50 py-4 rounded-xl border border-slate-100"
+            class="relative mb-4 flex justify-center bg-slate-50 dark:bg-slate-800/50 py-4 rounded-xl border border-slate-100 dark:border-slate-700/50"
             :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
             <img
               :src="candidato.fotoUrl"
               :alt="`Foto oficial de urna do candidato ${candidato.nomeUrna}`"
-              class="w-32 h-40 object-cover border border-slate-300 shadow-sm rounded"
+              class="w-32 h-40 object-cover border border-slate-300 dark:border-slate-600 shadow-sm rounded bg-slate-200 dark:bg-slate-700"
               @error="(e) => tratarErroFoto(e, candidato)"
             />
           </div>
@@ -570,32 +566,35 @@ const compartilharWhatsApp = (candidato) => {
             <div class="w-full">
               <div class="flex items-center gap-2 mb-1">
                 <span
-                  class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                  class="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded-full"
                   aria-label="Número de urna"
                   >Nº {{ candidato.numero }}</span
                 >
                 <span
-                  class="inline-block bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200"
+                  class="inline-block bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700"
                   :aria-label="`Idade: ${calcularIdade(candidato.dataDeNascimento)}`"
                 >
                   {{ calcularIdade(candidato.dataDeNascimento) }}
                 </span>
               </div>
-              <h2 class="text-lg font-bold text-slate-900 leading-tight">
+              <h2 class="text-lg font-bold text-slate-900 dark:text-white leading-tight">
                 {{ candidato.nomeUrna }}
               </h2>
-              <p class="text-xs text-slate-500" :aria-label="`Partido: ${candidato.partido}`">
+              <p
+                class="text-xs text-slate-500 dark:text-slate-400"
+                :aria-label="`Partido: ${candidato.partido}`"
+              >
                 {{ candidato.partido }}
               </p>
 
               <div
                 v-if="['Presidente', 'Governador'].includes(candidato.cargo)"
-                class="mt-3 flex items-start gap-1.5 bg-indigo-50/50 border border-indigo-100 p-2 rounded-lg"
+                class="mt-3 flex items-start gap-1.5 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/50 p-2 rounded-lg"
                 aria-label="Vice"
               >
                 <svg
                   aria-hidden="true"
-                  class="w-4 h-4 text-indigo-500 mt-0.5 shrink-0"
+                  class="w-4 h-4 text-indigo-500 dark:text-indigo-400 mt-0.5 shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -609,7 +608,9 @@ const compartilharWhatsApp = (candidato) => {
                   ></path>
                 </svg>
                 <div class="flex-grow">
-                  <p class="text-[10px] font-bold text-indigo-800 leading-tight">
+                  <p
+                    class="text-[10px] font-bold text-indigo-800 dark:text-indigo-300 leading-tight"
+                  >
                     <span class="opacity-75 uppercase tracking-wider block mb-0.5">Vice:</span>
                     <template v-if="candidato.vices && candidato.vices.length > 0">
                       {{ candidato.vices.join(' • ') }}
@@ -655,12 +656,12 @@ const compartilharWhatsApp = (candidato) => {
               @click="verificarStatusEmTempoReal(candidato)"
               :disabled="atualizandoId === candidato.id || atualizandoTodos"
               :aria-label="`Sincronizar dados completos de ${candidato.nomeUrna} no TSE`"
-              class="w-full flex items-center justify-center gap-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 focus:ring-2 focus:ring-slate-400 text-slate-700 py-2 rounded-sm transition-all disabled:opacity-50 mt-1"
+              class="w-full flex items-center justify-center gap-2 text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-slate-400 text-slate-700 dark:text-slate-300 py-2 rounded-sm transition-all disabled:opacity-50 mt-1"
             >
               <svg
                 v-if="atualizandoId === candidato.id"
                 aria-hidden="true"
-                class="animate-spin h-3.5 w-3.5 text-slate-700"
+                class="animate-spin h-3.5 w-3.5 text-slate-700 dark:text-slate-400"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -682,7 +683,7 @@ const compartilharWhatsApp = (candidato) => {
               <svg
                 v-else
                 aria-hidden="true"
-                class="h-3.5 w-3.5 text-slate-700"
+                class="h-3.5 w-3.5 text-slate-700 dark:text-slate-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -700,27 +701,27 @@ const compartilharWhatsApp = (candidato) => {
           </div>
 
           <div
-            class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100"
+            class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 dark:border-slate-800"
             :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
-            <div class="bg-slate-50 p-3 rounded-xl">
+            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl">
               <span
-                class="text-[10px] uppercase tracking-wider text-slate-500 block font-bold mb-0.5"
+                class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block font-bold mb-0.5"
                 >Limite 1º Turno</span
               >
               <span
-                class="text-sm font-bold text-slate-700 block truncate"
+                class="text-sm font-bold text-slate-700 dark:text-slate-300 block truncate"
                 :title="formatarMoeda(candidato.limiteGastos1T)"
                 >{{ formatarMoeda(candidato.limiteGastos1T) }}</span
               >
             </div>
-            <div class="bg-slate-50 p-3 rounded-xl">
+            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl">
               <span
-                class="text-[10px] uppercase tracking-wider text-slate-500 block font-bold mb-0.5"
+                class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block font-bold mb-0.5"
                 >Limite 2º Turno</span
               >
               <span
-                class="text-sm font-bold text-slate-700 block truncate"
+                class="text-sm font-bold text-slate-700 dark:text-slate-300 block truncate"
                 :title="formatarMoeda(candidato.limiteGastos2T)"
                 >{{
                   candidato.limiteGastos2T > 0
@@ -732,26 +733,27 @@ const compartilharWhatsApp = (candidato) => {
           </div>
 
           <div
-            class="mt-3 bg-slate-50 p-3 rounded-xl flex justify-between items-center"
+            class="mt-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl flex justify-between items-center"
             :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
-            <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-0.5"
+            <span
+              class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-0.5"
               >Bens Declarados</span
             >
-            <span class="text-sm font-bold text-slate-800">{{
+            <span class="text-sm font-bold text-slate-800 dark:text-slate-200">{{
               formatarMoeda(candidato.totalBens)
             }}</span>
           </div>
         </div>
 
         <div
-          class="bg-slate-50 px-4 py-3 border-t border-slate-100 flex flex-wrap gap-2"
+          class="bg-slate-50 dark:bg-slate-800/30 px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2"
           :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
         >
           <button
             @click="abrirModal(candidato, 'bens')"
             :aria-label="`Ver bens de ${candidato.nomeUrna}`"
-            class="flex-1 text-center py-2 px-2 bg-white border border-slate-300 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
+            class="flex-1 text-center py-2 px-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
           >
             Bens
           </button>
@@ -768,8 +770,8 @@ const compartilharWhatsApp = (candidato) => {
             class="flex-1 text-center py-2 px-2 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30 focus:outline-none focus:ring-2 focus:ring-slate-400"
             :class="
               isDeputadoCamara(candidato)
-                ? 'bg-slate-900 hover:bg-slate-800 text-white'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-60 border border-slate-200'
+                ? 'bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60 border border-slate-200 dark:border-slate-700'
             "
           >
             🏛️ Raio-X
@@ -785,8 +787,8 @@ const compartilharWhatsApp = (candidato) => {
             "
             :class="
               isSelecionadoParaComparar(candidato)
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 dark:border-indigo-500'
+                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             "
             class="flex-none text-center py-2 px-3 border text-xs font-black rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors shadow-sm relative z-30"
           >
@@ -796,7 +798,7 @@ const compartilharWhatsApp = (candidato) => {
           <button
             @click="compartilharWhatsApp(candidato)"
             :aria-label="`Compartilhar ficha de ${candidato.nomeUrna} no WhatsApp`"
-            class="flex-none flex items-center justify-center py-2 px-3 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 text-white rounded-xl transition-colors shadow-sm relative z-30"
+            class="flex-none flex items-center justify-center py-2 px-3 bg-green-600 dark:bg-green-700 hover:bg-green-700 dark:hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 text-white rounded-xl transition-colors shadow-sm relative z-30"
           >
             <svg
               aria-hidden="true"
@@ -816,10 +818,10 @@ const compartilharWhatsApp = (candidato) => {
 
     <div
       v-else
-      class="text-center py-16 bg-white rounded-2xl border border-slate-200"
+      class="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors"
       aria-live="polite"
     >
-      <p class="text-slate-500 text-base">
+      <p class="text-slate-500 dark:text-slate-400 text-base">
         Nenhum candidato encontrado com os critérios selecionados.
       </p>
     </div>
@@ -829,7 +831,7 @@ const compartilharWhatsApp = (candidato) => {
       v-if="candidatosComparacao.length > 0"
       role="region"
       aria-label="Controle de Comparação"
-      class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl z-40 flex items-center justify-between gap-6 animate-fade-in border border-slate-700 w-[90%] max-w-lg"
+      class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 dark:bg-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl z-40 flex items-center justify-between gap-6 animate-fade-in border border-slate-700 dark:border-slate-600 w-[90%] max-w-lg"
     >
       <div class="flex items-center gap-3">
         <span
@@ -853,7 +855,7 @@ const compartilharWhatsApp = (candidato) => {
         <button
           @click="limparComparacao"
           aria-label="Limpar lista de comparação"
-          class="bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors border border-slate-600"
+          class="bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors border border-slate-600 dark:border-slate-500"
         >
           Limpar
         </button>
@@ -861,36 +863,42 @@ const compartilharWhatsApp = (candidato) => {
     </div>
   </main>
 
-  <!-- MODAL DE BENS COM CASAS DECIMAIS -->
+  <!-- MODAL DE BENS COM CASAS DECIMAIS E DARK MODE -->
   <div
     v-if="modalAberto"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"
   >
     <div
-      class="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in flex flex-col"
+      class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in flex flex-col border border-slate-200 dark:border-slate-800 transition-colors"
     >
       <header
-        class="p-5 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10 shrink-0"
+        class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start sticky top-0 bg-white dark:bg-slate-900 z-10 shrink-0"
       >
         <div>
-          <span class="text-[11px] font-bold uppercase tracking-wider text-blue-600 block">
+          <span
+            class="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block"
+          >
             {{
               tipoModal === 'bens'
                 ? 'Detalhamento de Bens Declarados'
                 : 'Raio-X da Câmara (Atuação Parlamentar)'
             }}
           </span>
-          <h3 id="modal-title" class="text-xl font-extrabold text-slate-900 mt-0.5" tabindex="-1">
+          <h3
+            id="modal-title"
+            class="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5"
+            tabindex="-1"
+          >
             {{ candidatoAtivo.nomeUrna || candidatoAtivo.nome }}
           </h3>
         </div>
         <button
           @click="modalAberto = false"
           aria-label="Fechar janela"
-          class="text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded text-2xl font-bold px-2"
+          class="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded text-2xl font-bold px-2"
         >
           &times;
         </button>
@@ -898,12 +906,15 @@ const compartilharWhatsApp = (candidato) => {
 
       <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar">
         <div v-if="tipoModal === 'bens'">
-          <div class="p-4 bg-slate-50 rounded-xl mb-4 border border-slate-200 flex flex-col gap-3">
+          <div
+            class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl mb-4 border border-slate-200 dark:border-slate-800 flex flex-col gap-3"
+          >
             <div class="flex justify-between items-center w-full">
-              <span class="text-xs uppercase tracking-wider text-slate-500 font-bold"
+              <span
+                class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold"
                 >Total Declarado</span
               >
-              <span class="text-lg text-slate-900 font-black">{{
+              <span class="text-lg text-slate-900 dark:text-white font-black">{{
                 formatarMoeda(candidatoAtivo.totalBens)
               }}</span>
             </div>
@@ -913,7 +924,7 @@ const compartilharWhatsApp = (candidato) => {
               class="w-full"
             >
               <div
-                class="w-full h-3 rounded-full flex overflow-hidden mb-2 shadow-inner border border-slate-200/50"
+                class="w-full h-3 rounded-full flex overflow-hidden mb-2 shadow-inner border border-slate-200/50 dark:border-slate-700"
               >
                 <div
                   v-for="cat in bensClassificadosAtuais"
@@ -931,7 +942,7 @@ const compartilharWhatsApp = (candidato) => {
                   class="flex items-center gap-1.5"
                 >
                   <span class="w-2.5 h-2.5 rounded-full inline-block" :class="cat.cor"></span>
-                  <span class="text-[10px] font-bold text-slate-600"
+                  <span class="text-[10px] font-bold text-slate-600 dark:text-slate-400"
                     >{{ cat.label }} ({{ cat.percentualTexto }}%)</span
                   >
                 </div>
@@ -943,14 +954,20 @@ const compartilharWhatsApp = (candidato) => {
             <div
               v-for="(bem, i) in candidatoAtivo.bens"
               :key="i"
-              class="border-b border-slate-100 pb-3 mb-3 last:border-0 hover:bg-slate-50 p-2 rounded transition-colors"
+              class="border-b border-slate-100 dark:border-slate-800 pb-3 mb-3 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 p-2 rounded transition-colors"
             >
-              <p class="text-xs font-bold uppercase text-slate-400">{{ bem.tipo }}</p>
-              <p class="text-sm font-semibold text-slate-800 mt-0.5">{{ bem.descricao }}</p>
-              <p class="text-sm font-bold text-slate-900 mt-1">{{ formatarMoeda(bem.valor) }}</p>
+              <p class="text-xs font-bold uppercase text-slate-400 dark:text-slate-500">
+                {{ bem.tipo }}
+              </p>
+              <p class="text-sm font-semibold text-slate-800 dark:text-slate-300 mt-0.5">
+                {{ bem.descricao }}
+              </p>
+              <p class="text-sm font-bold text-slate-900 dark:text-white mt-1">
+                {{ formatarMoeda(bem.valor) }}
+              </p>
             </div>
           </div>
-          <div v-else class="text-center py-6 text-slate-400 text-sm">
+          <div v-else class="text-center py-6 text-slate-400 dark:text-slate-500 text-sm">
             Nenhum detalhe de bem cadastrado para este candidato.
           </div>
         </div>
@@ -958,45 +975,55 @@ const compartilharWhatsApp = (candidato) => {
         <div v-if="tipoModal === 'raiox'" aria-live="polite">
           <div v-if="raioxLoading" class="text-center py-10">
             <div
-              class="w-8 h-8 border-4 border-slate-800 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+              class="w-8 h-8 border-4 border-slate-800 dark:border-slate-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"
               aria-hidden="true"
             ></div>
-            <p class="text-sm font-bold text-slate-700">
+            <p class="text-sm font-bold text-slate-700 dark:text-slate-300">
               Conectando ao Portal de Dados Abertos da Câmara...
             </p>
-            <p class="text-xs text-slate-400 mt-1">
+            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
               Buscando despesas (CEAP) e projetos de lei recentes.
             </p>
           </div>
           <div
             v-else-if="!dadosRaioX"
-            class="text-center py-10 bg-slate-50 border border-slate-200 rounded-xl"
+            class="text-center py-10 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl"
           >
-            <p class="text-sm font-bold text-slate-700 mb-1">Candidato não encontrado na Câmara.</p>
-            <p class="text-xs text-slate-500 px-4">
+            <p class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Candidato não encontrado na Câmara.
+            </p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 px-4">
               Esta funcionalidade verifica apenas políticos que estão exercendo mandato de
               <strong>Deputado Federal</strong> atualmente em Brasília.
             </p>
           </div>
           <div v-else class="space-y-6">
-            <div class="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div
+              class="flex items-center gap-4 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700"
+            >
               <img
                 :src="dadosRaioX.foto"
                 alt="Foto do deputado na câmara"
-                class="w-16 h-20 object-cover rounded-lg shadow-sm border border-slate-300"
+                class="w-16 h-20 object-cover rounded-lg shadow-sm border border-slate-300 dark:border-slate-600 bg-slate-200 dark:bg-slate-700"
               />
               <div>
                 <span
-                  class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider mb-1 inline-block"
+                  class="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider mb-1 inline-block"
                   >Deputado(a) Encontrado(a)</span
                 >
-                <p class="text-sm font-bold text-slate-900 leading-tight">{{ dadosRaioX.nome }}</p>
-                <p class="text-xs text-slate-500 font-semibold mt-0.5">{{ dadosRaioX.partido }}</p>
+                <p class="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  {{ dadosRaioX.nome }}
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                  {{ dadosRaioX.partido }}
+                </p>
               </div>
             </div>
-            <div class="bg-rose-50 border border-rose-100 rounded-xl p-4">
+            <div
+              class="bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/50 rounded-xl p-4"
+            >
               <p
-                class="text-xs uppercase tracking-wider text-rose-800 font-bold mb-1 flex items-center gap-2"
+                class="text-xs uppercase tracking-wider text-rose-800 dark:text-rose-400 font-bold mb-1 flex items-center gap-2"
               >
                 <svg
                   aria-hidden="true"
@@ -1014,17 +1041,17 @@ const compartilharWhatsApp = (candidato) => {
                 </svg>
                 Despesas Registradas
               </p>
-              <p class="text-2xl font-black text-rose-900">
+              <p class="text-2xl font-black text-rose-900 dark:text-rose-300">
                 {{ formatarMoeda(dadosRaioX.gasto2026) }}
               </p>
-              <p class="text-[10px] text-rose-700 mt-1">
+              <p class="text-[10px] text-rose-700 dark:text-rose-500 mt-1">
                 Soma das últimas 100 notas fiscais lançadas na Cota para Exercício da Atividade
                 Parlamentar (CEAP).
               </p>
             </div>
             <div>
               <h4
-                class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 border-b border-slate-200 pb-2"
+                class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 border-b border-slate-200 dark:border-slate-800 pb-2"
               >
                 Projetos Recentes (Autor)
               </h4>
@@ -1035,20 +1062,24 @@ const compartilharWhatsApp = (candidato) => {
                 <article
                   v-for="projeto in dadosRaioX.projetosRecentes"
                   :key="projeto.id"
-                  class="bg-white border border-slate-200 p-3 rounded-lg hover:bg-slate-50 transition-colors"
+                  class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors"
                 >
-                  <p class="text-[10px] font-bold text-slate-400 mb-1 uppercase">
+                  <p
+                    class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1 uppercase"
+                  >
                     {{ projeto.siglaTipo }} {{ projeto.numero }}/{{ projeto.ano }}
                   </p>
                   <p
-                    class="text-xs text-slate-700 font-medium leading-snug line-clamp-3"
+                    class="text-xs text-slate-700 dark:text-slate-300 font-medium leading-snug line-clamp-3"
                     :title="projeto.ementa"
                   >
                     {{ projeto.ementa }}
                   </p>
                 </article>
               </div>
-              <p v-else class="text-xs text-slate-400">Nenhum projeto de lei recente encontrado.</p>
+              <p v-else class="text-xs text-slate-400 dark:text-slate-500">
+                Nenhum projeto de lei recente encontrado.
+              </p>
             </div>
           </div>
         </div>
@@ -1056,7 +1087,7 @@ const compartilharWhatsApp = (candidato) => {
     </div>
   </div>
 
-  <!-- MODAL DE COMPARAÇÃO "MANO A MANO" -->
+  <!-- MODAL DE COMPARAÇÃO "MANO A MANO" COM DARK MODE -->
   <div
     v-if="modalComparacaoAberto"
     class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
@@ -1065,10 +1096,10 @@ const compartilharWhatsApp = (candidato) => {
     aria-labelledby="versus-title"
   >
     <div
-      class="bg-slate-50 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in flex flex-col relative"
+      class="bg-slate-50 dark:bg-slate-900 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in flex flex-col relative border border-slate-200 dark:border-slate-800"
     >
       <header
-        class="p-5 bg-slate-900 text-white flex justify-between items-center sticky top-0 z-10 border-b border-slate-700"
+        class="p-5 bg-slate-900 dark:bg-black text-white flex justify-between items-center sticky top-0 z-10 border-b border-slate-700 dark:border-slate-800"
       >
         <div>
           <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 block"
@@ -1095,7 +1126,7 @@ const compartilharWhatsApp = (candidato) => {
         <div class="grid grid-cols-2 gap-4 md:gap-8 relative">
           <div
             aria-hidden="true"
-            class="absolute left-1/2 top-24 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-black italic shadow-xl z-20 text-xs md:text-base border-4 border-slate-50"
+            class="absolute left-1/2 top-24 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-black italic shadow-xl z-20 text-xs md:text-base border-4 border-slate-50 dark:border-slate-900"
           >
             VS
           </div>
@@ -1103,15 +1134,15 @@ const compartilharWhatsApp = (candidato) => {
           <article
             v-for="(cand, idx) in candidatosComparacao"
             :key="cand.id"
-            class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col relative z-10"
+            class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col relative z-10"
           >
             <div
-              class="bg-slate-100 rounded-t-2xl p-4 border-b border-slate-200 flex flex-col items-center justify-center relative h-48"
+              class="bg-slate-100 dark:bg-slate-900 rounded-t-2xl p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center relative h-48"
             >
               <img
                 :src="cand.fotoUrl"
                 :alt="`Foto oficial de ${cand.nomeUrna}`"
-                class="w-24 h-32 object-cover rounded-xl shadow-md border-2 border-white mb-3"
+                class="w-24 h-32 object-cover rounded-xl shadow-md border-2 border-white dark:border-slate-700 mb-3 bg-slate-200 dark:bg-slate-800"
                 @error="
                   (e) => {
                     e.target.onerror = null
@@ -1121,22 +1152,24 @@ const compartilharWhatsApp = (candidato) => {
                 "
               />
               <span
-                class="bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider absolute top-4 left-4"
+                class="bg-slate-800 dark:bg-slate-700 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider absolute top-4 left-4"
                 aria-label="Número de urna"
                 >Nº {{ cand.numero }}</span
               >
             </div>
 
             <div class="p-4 md:p-6 space-y-5 flex-grow">
-              <div class="text-center border-b border-slate-100 pb-4">
-                <h4 class="font-black text-lg text-slate-900 leading-tight mb-1">
+              <div class="text-center border-b border-slate-100 dark:border-slate-700 pb-4">
+                <h4 class="font-black text-lg text-slate-900 dark:text-white leading-tight mb-1">
                   {{ cand.nomeUrna }}
                 </h4>
-                <p class="text-sm font-bold text-slate-500">{{ cand.partido }}</p>
+                <p class="text-sm font-bold text-slate-500 dark:text-slate-400">
+                  {{ cand.partido }}
+                </p>
 
                 <div
                   v-if="['Presidente', 'Governador'].includes(cand.cargo)"
-                  class="mt-2 bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-1 rounded mx-auto inline-flex items-center gap-1 max-w-[90%] text-center"
+                  class="mt-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold px-2 py-1 rounded mx-auto inline-flex items-center gap-1 max-w-[90%] text-center border border-indigo-100 dark:border-indigo-800/50"
                 >
                   <template v-if="cand.vices && cand.vices.length > 0">
                     Vice: {{ cand.vices.join(' e ') }}
@@ -1146,13 +1179,13 @@ const compartilharWhatsApp = (candidato) => {
                   </template>
                 </div>
 
-                <p class="text-xs text-slate-400 mt-2">
+                <p class="text-xs text-slate-400 dark:text-slate-500 mt-2">
                   {{ calcularIdade(cand.dataDeNascimento) }}
                 </p>
               </div>
               <div>
                 <p
-                  class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1 text-center"
+                  class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold mb-1 text-center"
                 >
                   Situação
                 </p>
@@ -1163,27 +1196,33 @@ const compartilharWhatsApp = (candidato) => {
                   {{ cand.situacaoCandidatura }}
                 </div>
               </div>
-              <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-                <p class="text-[10px] uppercase tracking-wider text-emerald-600 font-bold mb-0.5">
+              <div
+                class="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/50 rounded-xl p-3 text-center"
+              >
+                <p
+                  class="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-500 font-bold mb-0.5"
+                >
                   Patrimônio Total
                 </p>
-                <p class="text-lg font-black text-emerald-900">
+                <p class="text-lg font-black text-emerald-900 dark:text-emerald-400">
                   {{ formatarMoeda(cand.totalBens) }}
                 </p>
               </div>
               <div
-                class="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center h-full flex flex-col justify-center"
+                class="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-center h-full flex flex-col justify-center"
               >
-                <p class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">
+                <p
+                  class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1"
+                >
                   Item Mais Caro Declarado
                 </p>
                 <p
-                  class="text-xs font-semibold text-slate-700 leading-snug line-clamp-2 mb-1"
+                  class="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-snug line-clamp-2 mb-1"
                   :title="obterMaiorBem(cand.bens).descricao"
                 >
                   {{ obterMaiorBem(cand.bens).descricao }}
                 </p>
-                <p class="text-sm font-black text-slate-900">
+                <p class="text-sm font-black text-slate-900 dark:text-white">
                   {{ formatarMoeda(obterMaiorBem(cand.bens).valor) }}
                 </p>
               </div>
@@ -1216,11 +1255,20 @@ const compartilharWhatsApp = (candidato) => {
   background: #f1f5f9;
   border-radius: 4px;
 }
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b;
+}
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
 }
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 </style>

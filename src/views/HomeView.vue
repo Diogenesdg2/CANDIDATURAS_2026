@@ -158,22 +158,22 @@ const avancarParaLista = () => {
 </script>
 
 <template>
-  <div class="space-y-8 max-w-5xl mx-auto pb-12">
-    <!-- CABEÇALHO COM AVISO DO TSE -->
+  <div class="space-y-8 max-w-5xl mx-auto pb-12 transition-colors duration-300">
+    <!-- CABEÇALHO -->
     <div>
-      <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">
+      <h1 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
         Explorador Eleitoral 2026
       </h1>
-      <p class="text-slate-500 text-sm mt-1">
+      <p class="text-slate-500 dark:text-slate-400 text-sm sm:text-base mt-2">
         Selecione a região, o estado e o cargo que deseja analisar as contas e candidaturas.
       </p>
 
       <!-- AVISO DE TRANSPARÊNCIA (API TSE) -->
       <div
-        class="mt-5 bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3 shadow-sm"
+        class="mt-5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-xl p-4 flex items-start gap-3 shadow-sm transition-colors"
       >
         <svg
-          class="w-6 h-6 text-blue-600 mt-0.5 flex-shrink-0"
+          class="w-6 h-6 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -187,12 +187,14 @@ const avancarParaLista = () => {
           ></path>
         </svg>
         <div>
-          <p class="text-sm text-blue-900 font-bold tracking-wide">Fonte de Dados Oficial</p>
-          <p class="text-xs text-blue-800 mt-1 leading-relaxed">
+          <p class="text-sm text-blue-900 dark:text-blue-300 font-bold tracking-wide">
+            Fonte de Dados Oficial
+          </p>
+          <p class="text-xs text-blue-800 dark:text-blue-200/80 mt-1 leading-relaxed">
             Todas as informações, fotos, lista de bens e status apresentados neste explorador são
             extraídos em tempo real e de forma automatizada do portal de dados abertos do
-            <strong>TSE (Tribunal Superior Eleitoral)</strong>, utilizando a API pública oficial
-            <i>divulgacandcontas.tse.jus.br</i>.
+            <strong class="dark:text-blue-100">TSE (Tribunal Superior Eleitoral)</strong>,
+            utilizando a API pública oficial <i>divulgacandcontas.tse.jus.br</i>.
           </p>
         </div>
       </div>
@@ -200,7 +202,9 @@ const avancarParaLista = () => {
 
     <!-- 1. ESCOLHA A REGIÃO -->
     <div class="space-y-3">
-      <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">1. Escolha a Região</h2>
+      <h2 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+        1. Escolha a Região
+      </h2>
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
         <button
           v-for="reg in regioes"
@@ -209,8 +213,8 @@ const avancarParaLista = () => {
           :class="[
             'p-3 rounded-2xl border text-sm font-semibold transition-all shadow-sm text-center',
             regiaoSelecionada === reg.id
-              ? 'bg-white border-blue-600 text-blue-600 ring-2 ring-blue-600/20'
-              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50',
+              ? 'bg-white dark:bg-slate-800 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 ring-2 ring-blue-600/20 dark:ring-blue-500/30'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
           ]"
         >
           {{ reg.nome }}
@@ -220,7 +224,7 @@ const avancarParaLista = () => {
 
     <!-- 2. SELECIONE O ESTADO -->
     <div class="space-y-3">
-      <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">
+      <h2 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
         2. Selecione o Estado
       </h2>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -231,17 +235,21 @@ const avancarParaLista = () => {
           :class="[
             'p-4 rounded-2xl border text-left transition-all shadow-sm flex items-center justify-between',
             ufSelecionada === est.sigla
-              ? 'bg-white border-blue-600 text-blue-900 ring-2 ring-blue-600/20'
-              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50',
+              ? 'bg-white dark:bg-slate-800 border-blue-600 dark:border-blue-500 text-blue-900 dark:text-blue-300 ring-2 ring-blue-600/20 dark:ring-blue-500/30'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
           ]"
         >
           <div>
             <p class="font-bold text-sm">{{ est.nome }}</p>
-            <p class="text-xs text-slate-400 mt-0.5">{{ est.sigla }}</p>
+            <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{{ est.sigla }}</p>
           </div>
           <span
             class="w-3 h-3 rounded-full"
-            :class="ufSelecionada === est.sigla ? 'bg-blue-600' : 'bg-slate-200'"
+            :class="
+              ufSelecionada === est.sigla
+                ? 'bg-blue-600 dark:bg-blue-500'
+                : 'bg-slate-200 dark:bg-slate-700'
+            "
           ></span>
         </button>
       </div>
@@ -249,7 +257,7 @@ const avancarParaLista = () => {
 
     <!-- 3. QUAL CARGO DESEJA ANALISAR -->
     <div class="space-y-3">
-      <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">
+      <h2 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
         3. Qual cargo deseja analisar?
       </h2>
       <div class="flex flex-wrap gap-3">
@@ -260,8 +268,8 @@ const avancarParaLista = () => {
           :class="[
             'px-5 py-2.5 rounded-xl border text-sm font-semibold transition-all shadow-sm',
             cargoSelecionado === carg.id
-              ? 'bg-slate-900 border-slate-900 text-white shadow-md'
-              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50',
+              ? 'bg-slate-900 dark:bg-slate-700 border-slate-900 dark:border-slate-600 text-white shadow-md'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
           ]"
         >
           {{ carg.nome }}
@@ -270,8 +278,10 @@ const avancarParaLista = () => {
     </div>
 
     <!-- CAIXA DE STATUS E IMPORTAÇÃO -->
-    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-      <div v-if="verificando" class="text-center py-4 text-slate-400 text-sm">
+    <div
+      class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-colors"
+    >
+      <div v-if="verificando" class="text-center py-4 text-slate-400 dark:text-slate-500 text-sm">
         Verificando status no banco de dados...
       </div>
 
@@ -282,20 +292,20 @@ const avancarParaLista = () => {
         >
           <div>
             <span
-              class="inline-block bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full mb-1"
+              class="inline-block bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-xs font-bold px-2.5 py-0.5 rounded-full mb-1"
             >
               Pronto para consulta
             </span>
-            <h3 class="text-base font-bold text-slate-900">
+            <h3 class="text-base font-bold text-slate-900 dark:text-slate-100">
               Os dados deste cargo já estão sincronizados!
             </h3>
-            <p class="text-xs text-slate-500">
+            <p class="text-xs text-slate-500 dark:text-slate-400">
               Você pode explorar os perfis, bens e limites imediatamente.
             </p>
           </div>
           <button
             @click="avancarParaLista"
-            class="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-all"
+            class="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-md transition-all"
           >
             Acessar Candidatos →
           </button>
@@ -308,44 +318,49 @@ const avancarParaLista = () => {
           >
             <div>
               <span
-                class="inline-block bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-0.5 rounded-full mb-1"
+                class="inline-block bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 text-xs font-bold px-2.5 py-0.5 rounded-full mb-1"
               >
                 Novos dados encontrados no TSE!
               </span>
-              <h3 class="text-base font-bold text-slate-900">
+              <h3 class="text-base font-bold text-slate-900 dark:text-slate-100">
                 Dados ainda não salvos no seu painel local.
               </h3>
-              <p class="text-xs text-slate-500">
+              <p class="text-xs text-slate-500 dark:text-slate-400">
                 Ao clicar, o sistema fará a importação oficial do TSE em tempo real.
               </p>
             </div>
             <button
               @click="iniciarImportacao"
-              class="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+              class="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
             >
               Importar do TSE
             </button>
           </div>
 
+          <!-- BARRA DE PROGRESSO -->
           <div v-else class="space-y-3 py-2">
-            <div class="flex justify-between items-center text-xs font-bold text-slate-700">
-              <span class="animate-pulse text-blue-600 flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping"></span>
+            <div
+              class="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300"
+            >
+              <span class="animate-pulse text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                <span
+                  class="w-2.5 h-2.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-ping"
+                ></span>
                 Baixando do TSE...
               </span>
               <span>{{ Math.round((progressoAtual / progressoTotal) * 100) || 0 }}%</span>
             </div>
 
             <div
-              class="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200"
+              class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden border border-slate-200 dark:border-slate-700"
             >
               <div
-                class="bg-blue-600 h-full transition-all duration-300"
+                class="bg-blue-600 dark:bg-blue-500 h-full transition-all duration-300"
                 :style="{ width: `${(progressoAtual / progressoTotal) * 100}%` }"
               ></div>
             </div>
 
-            <p class="text-xs text-slate-500 text-center font-medium">
+            <p class="text-xs text-slate-500 dark:text-slate-400 text-center font-medium">
               {{ textoStatus }}
             </p>
           </div>

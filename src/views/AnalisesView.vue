@@ -119,7 +119,7 @@ const categorizarBens = (listaDeBens, totalGeral) => {
     imoveis: { valor: 0, cor: 'bg-emerald-500', label: 'Imóveis' },
     investimentos: { valor: 0, cor: 'bg-blue-500', label: 'Investimentos & Dinheiro' },
     veiculos: { valor: 0, cor: 'bg-amber-500', label: 'Veículos' },
-    animais: { valor: 0, cor: 'bg-orange-600', label: 'Animais & Rebanho' }, // NOVA CATEGORIA!
+    animais: { valor: 0, cor: 'bg-orange-600', label: 'Animais & Rebanho' },
     empresas: { valor: 0, cor: 'bg-purple-500', label: 'Empresas & Outros' },
   }
 
@@ -166,6 +166,8 @@ const categorizarBens = (listaDeBens, totalGeral) => {
       textoCompleto.includes('aeronave') ||
       textoCompleto.includes('kombi') ||
       textoCompleto.includes('golf') ||
+      textoCompleto.includes('UP') ||
+      textoCompleto.includes('up') ||
       textoCompleto.includes('creta') ||
       textoCompleto.includes('omega') ||
       textoCompleto.includes('honda') ||
@@ -184,7 +186,7 @@ const categorizarBens = (listaDeBens, totalGeral) => {
     ) {
       categorias.veiculos.valor += valor
     }
-    // 3. REGRAS DE ANIMAIS & REBANHO (CAVALOS, GADO, ETC)
+    // 3. REGRAS DE ANIMAIS & REBANHO
     else if (
       textoCompleto.includes('cavalo') ||
       textoCompleto.includes('égua') ||
@@ -232,7 +234,7 @@ const categorizarBens = (listaDeBens, totalGeral) => {
     ) {
       categorias.investimentos.valor += valor
     }
-    // 5. TUDO O RESTO (EMPRESAS, QUOTAS, CAPITAL SOCIAL, ETC)
+    // 5. TUDO O RESTO
     else {
       categorias.empresas.valor += valor
     }
@@ -386,21 +388,25 @@ const candidatosDemografiaSelecionada = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-8 pb-12">
+  <div class="space-y-8 pb-12 transition-colors duration-300">
     <!-- CABEÇALHO E FILTROS -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
-        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">Análise de Dados</h1>
-        <p class="text-slate-500 text-sm mt-1">
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+          Análise de Dados
+        </h1>
+        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Comparativos baseados nos candidatos importados para o seu painel.
         </p>
       </div>
 
-      <div class="flex gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+      <div
+        class="flex gap-3 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors"
+      >
         <select
           v-model="ufSelecionada"
           @change="aoMudarUf"
-          class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option v-for="est in estados" :key="est.sigla" :value="est.sigla">
             {{ est.sigla }} - {{ est.nome }}
@@ -410,7 +416,7 @@ const candidatosDemografiaSelecionada = computed(() => {
         <select
           v-model="cargoSelecionado"
           @change="aoMudarCargo"
-          class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option v-for="carg in cargos" :key="carg.id" :value="carg.id">{{ carg.nome }}</option>
         </select>
@@ -418,20 +424,25 @@ const candidatosDemografiaSelecionada = computed(() => {
     </div>
 
     <!-- ESTADOS DE LOADING E VAZIO -->
-    <div v-if="carregando" class="text-center py-20 bg-white rounded-2xl border border-slate-200">
+    <div
+      v-if="carregando"
+      class="text-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800"
+    >
       <div
-        class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+        class="w-10 h-10 border-4 border-blue-600 dark:border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"
       ></div>
-      <p class="text-slate-500 font-medium text-sm">Calculando estatísticas...</p>
+      <p class="text-slate-500 dark:text-slate-400 font-medium text-sm">
+        Calculando estatísticas...
+      </p>
     </div>
     <div
       v-else-if="candidatos.length === 0"
-      class="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm"
+      class="text-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm"
     >
-      <p class="text-slate-500 text-base font-bold mb-2">
+      <p class="text-slate-500 dark:text-slate-400 text-base font-bold mb-2">
         Nenhum dado importado para esta seleção.
       </p>
-      <p class="text-sm text-slate-400">
+      <p class="text-sm text-slate-400 dark:text-slate-500">
         Vá até a página Inicial e importe os candidatos do TSE para gerar análises.
       </p>
     </div>
@@ -440,41 +451,58 @@ const candidatosDemografiaSelecionada = computed(() => {
     <div v-else class="space-y-6">
       <!-- 1. KPIS GRID -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+        <div
+          class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors"
+        >
+          <p
+            class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1"
+          >
             Candidatos Analisados
           </p>
-          <p class="text-3xl font-black text-slate-900">{{ kpis.total }}</p>
+          <p class="text-3xl font-black text-slate-900 dark:text-white">{{ kpis.total }}</p>
         </div>
-        <div class="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm bg-emerald-50/30">
-          <p class="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">
+        <div
+          class="bg-emerald-50/30 dark:bg-emerald-900/10 p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800 shadow-sm transition-colors"
+        >
+          <p
+            class="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider mb-1"
+          >
             Patrimônio Declarado (Total)
           </p>
-          <p class="text-2xl font-black text-emerald-900">
+          <p class="text-2xl font-black text-emerald-900 dark:text-emerald-300">
             {{ formatarMoeda(kpis.patrimonioSomado) }}
           </p>
         </div>
-        <div class="bg-white p-6 rounded-2xl border border-blue-200 shadow-sm bg-blue-50/30">
-          <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
+        <div
+          class="bg-blue-50/30 dark:bg-blue-900/10 p-6 rounded-2xl border border-blue-200 dark:border-blue-800 shadow-sm transition-colors"
+        >
+          <p
+            class="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase tracking-wider mb-1"
+          >
             Média de Bens por Candidato
           </p>
-          <p class="text-2xl font-black text-blue-900">{{ formatarMoeda(kpis.mediaBens) }}</p>
+          <p class="text-2xl font-black text-blue-900 dark:text-blue-300">
+            {{ formatarMoeda(kpis.mediaBens) }}
+          </p>
         </div>
       </div>
 
       <!-- BLOCO: RAIO-X DEMOGRÁFICO -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div
+        class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 transition-colors"
+      >
         <h2
-          class="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2 border-b border-slate-100 pb-3"
+          class="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3"
         >
-          <span class="w-2 h-6 bg-purple-600 rounded-full inline-block"></span> Raio-X Demográfico
+          <span class="w-2 h-6 bg-purple-600 dark:bg-purple-500 rounded-full inline-block"></span>
+          Raio-X Demográfico
         </h2>
 
         <div
           v-if="!demografia.possuiDados"
-          class="p-4 bg-amber-50 border border-amber-200 rounded-xl"
+          class="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl"
         >
-          <p class="text-sm text-amber-800 font-bold flex items-center gap-2">
+          <p class="text-sm text-amber-800 dark:text-amber-400 font-bold flex items-center gap-2">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
@@ -485,7 +513,7 @@ const candidatosDemografiaSelecionada = computed(() => {
             </svg>
             Faltam dados demográficos!
           </p>
-          <p class="text-xs text-amber-700 mt-1 leading-relaxed">
+          <p class="text-xs text-amber-700 dark:text-amber-500 mt-1 leading-relaxed">
             Seu banco de dados foi importado antes da atualização do robô.
             <strong>Exclua os documentos na coleção 'candidatos' no Firebase</strong> e importe
             novamente para ativar os gráficos abaixo.
@@ -495,13 +523,17 @@ const candidatosDemografiaSelecionada = computed(() => {
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-8">
           <!-- Gênero -->
           <div>
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Gênero</h3>
+            <h3
+              class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4"
+            >
+              Gênero
+            </h3>
             <div class="space-y-4">
               <div v-for="gen in demografia.genero" :key="gen.label" class="group">
                 <div class="flex justify-between text-xs mb-1 items-center">
                   <button
                     @click="abrirModalDemografia('genero', gen.label)"
-                    class="font-bold text-slate-700 hover:text-blue-600 focus:outline-none flex items-center gap-1 transition-colors"
+                    class="font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none flex items-center gap-1 transition-colors"
                   >
                     {{ gen.label }}
                     <svg
@@ -519,14 +551,18 @@ const candidatosDemografiaSelecionada = computed(() => {
                       ></path>
                     </svg>
                   </button>
-                  <span class="font-bold text-slate-900"
+                  <span class="font-bold text-slate-900 dark:text-slate-200"
                     >{{ Math.round(gen.percentual) }}% ({{ gen.count }})</span
                   >
                 </div>
-                <div class="w-full bg-slate-100 rounded-full h-2">
+                <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
                   <div
                     class="h-2 rounded-full"
-                    :class="gen.label === 'FEMININO' ? 'bg-pink-500' : 'bg-blue-500'"
+                    :class="
+                      gen.label === 'FEMININO'
+                        ? 'bg-pink-500 dark:bg-pink-600'
+                        : 'bg-blue-500 dark:bg-blue-600'
+                    "
                     :style="{ width: `${gen.percentual}%` }"
                   ></div>
                 </div>
@@ -536,7 +572,9 @@ const candidatosDemografiaSelecionada = computed(() => {
 
           <!-- Cor/Raça -->
           <div>
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+            <h3
+              class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4"
+            >
               Cor/Raça Declarada
             </h3>
             <div class="space-y-3">
@@ -544,7 +582,7 @@ const candidatosDemografiaSelecionada = computed(() => {
                 <div class="flex justify-between text-xs mb-1 items-center">
                   <button
                     @click="abrirModalDemografia('corRaca', raca.label)"
-                    class="font-bold text-slate-700 hover:text-blue-600 focus:outline-none flex items-center gap-1 transition-colors"
+                    class="font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none flex items-center gap-1 transition-colors"
                   >
                     {{ raca.label }}
                     <svg
@@ -562,13 +600,13 @@ const candidatosDemografiaSelecionada = computed(() => {
                       ></path>
                     </svg>
                   </button>
-                  <span class="font-bold text-slate-900"
+                  <span class="font-bold text-slate-900 dark:text-slate-200"
                     >{{ Math.round(raca.percentual) }}% ({{ raca.count }})</span
                   >
                 </div>
-                <div class="w-full bg-slate-100 rounded-full h-1.5">
+                <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
                   <div
-                    class="bg-indigo-500 h-1.5 rounded-full"
+                    class="bg-indigo-500 dark:bg-indigo-600 h-1.5 rounded-full"
                     :style="{ width: `${raca.percentual}%` }"
                   ></div>
                 </div>
@@ -581,11 +619,11 @@ const candidatosDemografiaSelecionada = computed(() => {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- RANKING DE RICOS -->
         <div
-          class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col"
+          class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col transition-colors"
         >
-          <h2 class="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <span class="w-2 h-6 bg-blue-600 rounded-full inline-block"></span> Top 10 Maiores
-            Patrimônios
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+            <span class="w-2 h-6 bg-blue-600 dark:bg-blue-500 rounded-full inline-block"></span> Top
+            10 Maiores Patrimônios
           </h2>
 
           <div class="space-y-4 flex-grow">
@@ -593,20 +631,22 @@ const candidatosDemografiaSelecionada = computed(() => {
               <div class="flex justify-between text-sm mb-1">
                 <button
                   @click="abrirModal(cand, 'bens')"
-                  class="font-bold text-slate-800 text-left hover:text-blue-600 transition-colors focus:outline-none flex items-center gap-2"
+                  class="font-bold text-slate-800 dark:text-slate-200 text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none flex items-center gap-2"
                   title="Clique para ver os bens detalhados"
                 >
                   {{ index + 1 }}. {{ cand.nomeUrna }}
                   <span
-                    class="text-slate-400 font-normal group-hover:text-blue-400 transition-colors"
+                    class="text-slate-400 dark:text-slate-500 font-normal group-hover:text-blue-400 dark:group-hover:text-blue-300 transition-colors"
                     >({{ cand.partido }})</span
                   >
                 </button>
-                <span class="font-bold text-slate-900">{{ formatarMoeda(cand.totalBens) }}</span>
+                <span class="font-bold text-slate-900 dark:text-white">{{
+                  formatarMoeda(cand.totalBens)
+                }}</span>
               </div>
-              <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+              <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
                 <div
-                  class="bg-blue-600 h-2.5 rounded-full transition-all"
+                  class="bg-blue-600 dark:bg-blue-500 h-2.5 rounded-full transition-all"
                   :style="{ width: `${(cand.totalBens / rankingRicos.maiorPatrimonio) * 100}%` }"
                 ></div>
               </div>
@@ -617,23 +657,29 @@ const candidatosDemografiaSelecionada = computed(() => {
         <!-- COLUNA DA DIREITA -->
         <div class="space-y-6">
           <!-- EXTREMOS DE IDADE -->
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <h2 class="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide border-b pb-2">
+          <div
+            class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 transition-colors"
+          >
+            <h2
+              class="text-sm font-bold text-slate-900 dark:text-white mb-4 uppercase tracking-wide border-b border-slate-100 dark:border-slate-800 pb-2"
+            >
               Perfil de Idade
             </h2>
             <div
               v-if="!extremosIdade.possuiDados"
-              class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl"
+              class="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl"
             >
-              <p class="text-sm text-amber-800 font-bold">
+              <p class="text-sm text-amber-800 dark:text-amber-400 font-bold">
                 Faltam dados de idade! Reimporte os candidatos.
               </p>
             </div>
             <div v-else class="space-y-4 mt-4">
               <div
-                class="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100"
+                class="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800"
               >
-                <div class="bg-blue-100 text-blue-700 p-2 rounded-lg">
+                <div
+                  class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 p-2 rounded-lg"
+                >
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       stroke-linecap="round"
@@ -644,21 +690,25 @@ const candidatosDemografiaSelecionada = computed(() => {
                   </svg>
                 </div>
                 <div>
-                  <p class="text-[10px] font-bold text-slate-400 uppercase">Candidato Mais Velho</p>
-                  <p class="text-sm font-bold text-slate-800 leading-tight">
+                  <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                    Candidato Mais Velho
+                  </p>
+                  <p class="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">
                     {{ extremosIdade.maisVelho.nomeUrna }} ({{ extremosIdade.maisVelho.partido }})
                   </p>
-                  <p class="text-xs font-semibold text-blue-600">
+                  <p class="text-xs font-semibold text-blue-600 dark:text-blue-400">
                     {{ extremosIdade.maisVelho.idade }} anos
                   </p>
                 </div>
               </div>
 
               <div
-                class="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100"
+                class="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800"
                 v-if="extremosIdade.maisVelho.id !== extremosIdade.maisNovo.id"
               >
-                <div class="bg-emerald-100 text-emerald-700 p-2 rounded-lg">
+                <div
+                  class="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 p-2 rounded-lg"
+                >
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       stroke-linecap="round"
@@ -669,11 +719,13 @@ const candidatosDemografiaSelecionada = computed(() => {
                   </svg>
                 </div>
                 <div>
-                  <p class="text-[10px] font-bold text-slate-400 uppercase">Candidato Mais Novo</p>
-                  <p class="text-sm font-bold text-slate-800 leading-tight">
+                  <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                    Candidato Mais Novo
+                  </p>
+                  <p class="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">
                     {{ extremosIdade.maisNovo.nomeUrna }} ({{ extremosIdade.maisNovo.partido }})
                   </p>
-                  <p class="text-xs font-semibold text-emerald-600">
+                  <p class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                     {{ extremosIdade.maisNovo.idade }} anos
                   </p>
                 </div>
@@ -683,10 +735,10 @@ const candidatosDemografiaSelecionada = computed(() => {
 
           <!-- CONTAGEM DE CANDIDATOS POR PARTIDO -->
           <div
-            class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col max-h-[350px]"
+            class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col max-h-[350px] transition-colors"
           >
             <h2
-              class="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide border-b pb-2 shrink-0"
+              class="text-sm font-bold text-slate-900 dark:text-white mb-4 uppercase tracking-wide border-b border-slate-100 dark:border-slate-800 pb-2 shrink-0"
             >
               Candidatos por Partido
             </h2>
@@ -700,15 +752,17 @@ const candidatosDemografiaSelecionada = computed(() => {
                 <div class="flex justify-between text-xs mb-1 items-center">
                   <button
                     @click="abrirModalPartido(partido.partido)"
-                    class="font-bold text-slate-700 hover:text-blue-600 focus:outline-none flex items-center gap-1 transition-colors"
+                    class="font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none flex items-center gap-1 transition-colors"
                   >
                     {{ partido.partido }}
                   </button>
-                  <span class="font-bold text-slate-900">{{ partido.total }} candidato(s)</span>
+                  <span class="font-bold text-slate-900 dark:text-slate-200"
+                    >{{ partido.total }} candidato(s)</span
+                  >
                 </div>
-                <div class="w-full bg-slate-100 rounded-full h-1.5">
+                <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
                   <div
-                    class="bg-blue-500 h-1.5 rounded-full"
+                    class="bg-blue-500 dark:bg-blue-600 h-1.5 rounded-full"
                     :style="{ width: `${(partido.total / contagemPartidos.maiorTotal) * 100}%` }"
                   ></div>
                 </div>
@@ -718,10 +772,10 @@ const candidatosDemografiaSelecionada = computed(() => {
 
           <!-- PATRIMÔNIO POR PARTIDO -->
           <div
-            class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col max-h-[350px]"
+            class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col max-h-[350px] transition-colors"
           >
             <h2
-              class="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide border-b pb-2 shrink-0"
+              class="text-sm font-bold text-slate-900 dark:text-white mb-4 uppercase tracking-wide border-b border-slate-100 dark:border-slate-800 pb-2 shrink-0"
             >
               Patrimônio por Partido
             </h2>
@@ -729,12 +783,16 @@ const candidatosDemografiaSelecionada = computed(() => {
             <div class="space-y-3 mt-2 overflow-y-auto pr-2 custom-scrollbar">
               <div v-for="partido in rankingPartidos.lista" :key="'patr-' + partido.partido">
                 <div class="flex justify-between text-xs mb-1">
-                  <span class="font-bold text-slate-700">{{ partido.partido }}</span>
-                  <span class="font-bold text-slate-900">{{ formatarMoeda(partido.total) }}</span>
+                  <span class="font-bold text-slate-700 dark:text-slate-300">{{
+                    partido.partido
+                  }}</span>
+                  <span class="font-bold text-slate-900 dark:text-slate-200">{{
+                    formatarMoeda(partido.total)
+                  }}</span>
                 </div>
-                <div class="w-full bg-slate-100 rounded-full h-1.5">
+                <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
                   <div
-                    class="bg-slate-800 h-1.5 rounded-full"
+                    class="bg-slate-800 dark:bg-slate-500 h-1.5 rounded-full"
                     :style="{ width: `${(partido.total / rankingPartidos.maiorTotal) * 100}%` }"
                   ></div>
                 </div>
@@ -752,14 +810,16 @@ const candidatosDemografiaSelecionada = computed(() => {
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
   >
     <div
-      class="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in flex flex-col"
+      class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl animate-fade-in flex flex-col border border-slate-200 dark:border-slate-800"
     >
       <div
-        class="p-5 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10 shrink-0"
+        class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start sticky top-0 bg-white dark:bg-slate-900 z-10 shrink-0"
       >
         <div>
           <!-- Título Dinâmico do Modal -->
-          <span class="text-[11px] font-bold uppercase tracking-wider text-blue-600 block">
+          <span
+            class="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block"
+          >
             {{
               tipoModal === 'bens'
                 ? 'Detalhamento de Bens Declarados'
@@ -768,7 +828,7 @@ const candidatosDemografiaSelecionada = computed(() => {
                   : 'Filtro Demográfico'
             }}
           </span>
-          <h3 class="text-xl font-extrabold text-slate-900 mt-0.5">
+          <h3 class="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
             {{
               tipoModal === 'bens'
                 ? candidatoAtivo.nomeUrna || candidatoAtivo.nome
@@ -780,7 +840,7 @@ const candidatosDemografiaSelecionada = computed(() => {
         </div>
         <button
           @click="modalAberto = false"
-          class="text-slate-400 hover:text-slate-600 text-2xl font-bold px-2"
+          class="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 text-2xl font-bold px-2"
         >
           &times;
         </button>
@@ -789,12 +849,15 @@ const candidatosDemografiaSelecionada = computed(() => {
       <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar">
         <!-- Conteúdo dos Bens -->
         <div v-if="tipoModal === 'bens'">
-          <div class="p-4 bg-slate-50 rounded-xl mb-4 border border-slate-200 flex flex-col gap-3">
+          <div
+            class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl mb-4 border border-slate-200 dark:border-slate-800 flex flex-col gap-3"
+          >
             <div class="flex justify-between items-center w-full">
-              <span class="text-xs uppercase tracking-wider text-slate-500 font-bold"
+              <span
+                class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold"
                 >Total Declarado</span
               >
-              <span class="text-lg text-slate-900 font-black">{{
+              <span class="text-lg text-slate-900 dark:text-white font-black">{{
                 formatarMoeda(candidatoAtivo.totalBens)
               }}</span>
             </div>
@@ -804,7 +867,7 @@ const candidatosDemografiaSelecionada = computed(() => {
               class="w-full"
             >
               <div
-                class="w-full h-3 rounded-full flex overflow-hidden mb-2 shadow-inner border border-slate-200/50"
+                class="w-full h-3 rounded-full flex overflow-hidden mb-2 shadow-inner border border-slate-200/50 dark:border-slate-700"
               >
                 <div
                   v-for="cat in bensClassificadosAtuais"
@@ -822,7 +885,7 @@ const candidatosDemografiaSelecionada = computed(() => {
                   class="flex items-center gap-1.5"
                 >
                   <span class="w-2.5 h-2.5 rounded-full inline-block" :class="cat.cor"></span>
-                  <span class="text-[10px] font-bold text-slate-600"
+                  <span class="text-[10px] font-bold text-slate-600 dark:text-slate-400"
                     >{{ cat.label }} ({{ cat.percentualTexto }}%)</span
                   >
                 </div>
@@ -834,29 +897,41 @@ const candidatosDemografiaSelecionada = computed(() => {
             <div
               v-for="(bem, i) in candidatoAtivo.bens"
               :key="i"
-              class="border-b border-slate-100 pb-3 mb-3 last:border-0 hover:bg-slate-50 p-2 rounded transition-colors"
+              class="border-b border-slate-100 dark:border-slate-800 pb-3 mb-3 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 p-2 rounded transition-colors"
             >
-              <p class="text-xs font-bold uppercase text-slate-400">{{ bem.tipo }}</p>
-              <p class="text-sm font-semibold text-slate-800 mt-0.5">{{ bem.descricao }}</p>
-              <p class="text-sm font-bold text-slate-900 mt-1">{{ formatarMoeda(bem.valor) }}</p>
+              <p class="text-xs font-bold uppercase text-slate-400 dark:text-slate-500">
+                {{ bem.tipo }}
+              </p>
+              <p class="text-sm font-semibold text-slate-800 dark:text-slate-300 mt-0.5">
+                {{ bem.descricao }}
+              </p>
+              <p class="text-sm font-bold text-slate-900 dark:text-white mt-1">
+                {{ formatarMoeda(bem.valor) }}
+              </p>
             </div>
           </div>
-          <div v-else class="text-center py-6 text-slate-400 text-sm">
+          <div v-else class="text-center py-6 text-slate-400 dark:text-slate-500 text-sm">
             Nenhum detalhe de bem cadastrado para este candidato.
           </div>
         </div>
 
         <!-- Conteúdo da Lista de Candidatos do Partido -->
         <div v-if="tipoModal === 'partido'">
-          <div class="flex items-center justify-between px-3 pb-2 mb-3 border-b border-slate-200">
+          <div
+            class="flex items-center justify-between px-3 pb-2 mb-3 border-b border-slate-200 dark:border-slate-800"
+          >
             <div class="flex items-center">
               <span
-                class="text-[10px] font-bold text-slate-400 uppercase inline-block w-[60px] text-center mr-2"
+                class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase inline-block w-[60px] text-center mr-2"
                 >Número</span
               >
-              <span class="text-[10px] font-bold text-slate-400 uppercase">Nome na Urna</span>
+              <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase"
+                >Nome na Urna</span
+              >
             </div>
-            <div class="text-[10px] font-bold text-slate-400 uppercase text-right pl-2">
+            <div
+              class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase text-right pl-2"
+            >
               Bens Declarados
             </div>
           </div>
@@ -864,18 +939,20 @@ const candidatosDemografiaSelecionada = computed(() => {
             <div
               v-for="candidato in candidatosDoPartidoSelecionado"
               :key="candidato.id"
-              class="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 transition-colors"
+              class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
               <div class="flex items-center">
                 <span
-                  class="text-[10px] bg-slate-200 text-slate-600 font-bold px-2 py-1 rounded mr-2 inline-block w-[60px] text-center"
+                  class="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-2 py-1 rounded mr-2 inline-block w-[60px] text-center"
                 >
                   Nº {{ candidato.numero }}
                 </span>
-                <span class="text-sm font-bold text-slate-800">{{ candidato.nomeUrna }}</span>
+                <span class="text-sm font-bold text-slate-800 dark:text-slate-200">{{
+                  candidato.nomeUrna
+                }}</span>
               </div>
               <div
-                class="text-xs font-bold text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0"
+                class="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm shrink-0"
               >
                 {{ formatarMoeda(candidato.totalBens) }}
               </div>
@@ -885,17 +962,21 @@ const candidatosDemografiaSelecionada = computed(() => {
 
         <!-- Conteúdo da Lista Demográfica -->
         <div v-if="tipoModal === 'demografia'">
-          <div class="flex items-center justify-between px-3 pb-2 mb-3 border-b border-slate-200">
+          <div
+            class="flex items-center justify-between px-3 pb-2 mb-3 border-b border-slate-200 dark:border-slate-800"
+          >
             <div class="flex items-center">
               <span
-                class="text-[10px] font-bold text-slate-400 uppercase inline-block w-[60px] text-center mr-2"
+                class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase inline-block w-[60px] text-center mr-2"
                 >Número</span
               >
-              <span class="text-[10px] font-bold text-slate-400 uppercase"
+              <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase"
                 >Candidato / Partido</span
               >
             </div>
-            <div class="text-[10px] font-bold text-slate-400 uppercase text-right pl-2">
+            <div
+              class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase text-right pl-2"
+            >
               Bens Declarados
             </div>
           </div>
@@ -903,25 +984,26 @@ const candidatosDemografiaSelecionada = computed(() => {
             <div
               v-for="candidato in candidatosDemografiaSelecionada"
               :key="candidato.id"
-              class="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 transition-colors"
+              class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
               <div class="flex items-center">
                 <span
-                  class="text-[10px] bg-slate-200 text-slate-600 font-bold px-2 py-1 rounded mr-2 inline-block w-[60px] text-center"
+                  class="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-2 py-1 rounded mr-2 inline-block w-[60px] text-center"
                 >
                   Nº {{ candidato.numero }}
                 </span>
                 <div class="flex flex-col">
-                  <span class="text-sm font-bold text-slate-800 leading-tight">{{
-                    candidato.nomeUrna
-                  }}</span>
-                  <span class="text-[10px] text-slate-500 font-semibold">{{
+                  <span
+                    class="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight"
+                    >{{ candidato.nomeUrna }}</span
+                  >
+                  <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{{
                     candidato.partido
                   }}</span>
                 </div>
               </div>
               <div
-                class="text-xs font-bold text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0"
+                class="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm shrink-0"
               >
                 {{ formatarMoeda(candidato.totalBens) }}
               </div>
@@ -955,11 +1037,20 @@ const candidatosDemografiaSelecionada = computed(() => {
   background: #f1f5f9;
   border-radius: 4px;
 }
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b;
+}
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
 }
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 </style>
