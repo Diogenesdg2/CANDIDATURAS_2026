@@ -15,11 +15,12 @@ import { db } from './config'
 const candidatosCollection = collection(db, 'candidatos')
 
 // =========================================================================
-// 🌟 A MÁGICA AQUI: Proxy neutro que dribla o CORS do navegador e o WAF do TSE
+// 🌟 TENTATIVA 2: allOrigins (Proxy que burla firewalls governamentais)
 // =========================================================================
 const montarUrlTse = (caminho) => {
   const baseUrl = 'https://divulgacandcontas.tse.jus.br/divulga/rest/v1'
-  return `https://corsproxy.io/?${encodeURIComponent(baseUrl + caminho)}`
+  // allOrigins precisa buscar o link cru (raw)
+  return `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl + caminho)}`
 }
 
 // Função auxiliar para evitar bloqueio por excesso de velocidade
