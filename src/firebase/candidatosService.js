@@ -14,8 +14,61 @@ import { db } from './config'
 
 const candidatosCollection = collection(db, 'candidatos')
 
-// Função auxiliar para criar uma pausa (delay) e não sobrecarregar o proxy local
+const ID_ELEICAO = '20322002026'
+const ANO = 2026
+const CARGOS = {
+  1: 'Presidente',
+  2: 'Vice-Presidente',
+  3: 'Governador',
+  4: 'Vice-Governador',
+  5: 'Senador',
+  6: 'Deputado Federal',
+  7: 'Deputado Estadual',
+  8: 'Deputado Distrital',
+  9: '1º Suplente',
+  10: '2º Suplente',
+}
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// =========================================================================
+// 🛡️ FETCH INTELIGENTE (Detecta Localhost vs AWS)
+// =========================================================================
+const fetchResiliente = async (caminhoTse) => {
+  const urlBaseOficial = 'https://divulgacandcontas.tse.jus.br/divulga/rest/v1'
+
+  // 1. SE ESTIVER NO LOCALHOST (Vite)
+  if (import.meta.env.DEV) {
+    // Usa o proxy local perfeito que você já tinha configurado no vite.config.js
+    const urlLocal = `/api-tse/divulga/rest/v1${caminhoTse}`
+    const resposta = await fetch(urlLocal)
+    if (resposta.ok) return await resposta.json()
+    throw new Error('Falha no proxy local do Vite.')
+  }
+
+  // 2. SE ESTIVER NA AWS (Produção)
+  // Tenta as rotas que driblam o Firewall do Governo
+  const tentativasNaNuvem = [
+    `/api-tse/divulga/rest/v1${caminhoTse}`, // Tenta primeiro a regra de Rewrite da própria AWS
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(urlBaseOficial + caminhoTse)}`, // Proxy fallback 1
+    `https://corsproxy.io/?${encodeURIComponent(urlBaseOficial + caminhoTse)}`, // Proxy fallback 2
+  ]
+
+  for (const url of tentativasNaNuvem) {
+    try {
+      const resposta = await fetch(url)
+      if (resposta.ok) {
+        return await resposta.json()
+      }
+    } catch (e) {
+      console.warn(`AWS: Rota bloqueada (${url}). Pulando para o proxy reserva...`)
+    }
+  }
+
+  throw new Error('A AWS não conseguiu passar pelo Firewall do TSE neste momento.')
+}
+
+// ====================================================
 
 export const buscarCandidatos = async (ufFiltro = null, cargoFiltro = null) => {
   try {
@@ -50,24 +103,8 @@ export const verificarDadosExistem = async (uf, codigoCargo) => {
   }
 }
 
-const ID_ELEICAO = '20322002026'
-const ANO = 2026
-const CARGOS = {
-  1: 'Presidente',
-  2: 'Vice-Presidente',
-  3: 'Governador',
-  4: 'Vice-Governador',
-  5: 'Senador',
-  6: 'Deputado Federal',
-  7: 'Deputado Estadual',
-  8: 'Deputado Distrital',
-  9: '1º Suplente',
-  10: '2º Suplente',
-}
-
 const cacarVicesTSE = (detalhes) => {
   let nomesEncontrados = []
-
   const extrair = (obj) => {
     if (!obj) return
     const nome =
@@ -79,17 +116,14 @@ const cacarVicesTSE = (detalhes) => {
       obj.nmUrnaCandidato
     if (nome) nomesEncontrados.push(nome)
   }
-
   if (Array.isArray(detalhes.vices)) detalhes.vices.forEach(extrair)
   if (Array.isArray(detalhes.suplentes)) detalhes.suplentes.forEach(extrair)
   if (Array.isArray(detalhes.substitutos)) detalhes.substitutos.forEach(extrair)
-
   if (detalhes.viceCandidato) extrair(detalhes.viceCandidato)
   if (detalhes.vice) {
     if (Array.isArray(detalhes.vice)) detalhes.vice.forEach(extrair)
     else extrair(detalhes.vice)
   }
-
   return [...new Set(nomesEncontrados)]
 }
 
@@ -105,14 +139,11 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
 
     const nomeCargo = CARGOS[codigoCargo]
 
-    // VOLTAMOS AO PROXY DO VITE (Localhost)
-    const urlProxy = `/api-tse/divulga/rest/v1/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`
-    const resposta = await fetch(urlProxy)
-
-    if (!resposta.ok) throw new Error(`O TSE retornou um erro na lista geral: ${resposta.status}`)
-
-    const dados = await resposta.json()
-    const listaCandidatos = dados.candidatos || []
+    // Usa a nova função blindada
+    const dadosLista = await fetchResiliente(
+      `/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`,
+    )
+    const listaCandidatos = dadosLista.candidatos || []
     const totalCandidatos = listaCandidatos.length
 
     if (totalCandidatos === 0) {
@@ -140,37 +171,33 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       let grauInstrucao = 'Não informado'
       let listaVices = []
 
+      // Foto é servida diretamente
       let fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO}/${cand.id}/${uf}`
 
       try {
-        const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`
-        const respostaDetalhes = await fetch(urlDetalhes)
-        if (respostaDetalhes.ok) {
-          const detalhes = await respostaDetalhes.json()
-          totalBensDeclarados = detalhes.totalDeBens || 0
-          limiteGastos1T = detalhes.gastoCampanha1T || 0
-          limiteGastos2T = detalhes.gastoCampanha2T || 0
-          listaBens = detalhes.bens || []
-          situacaoCand = detalhes.descricaoSituacao || 'Não informado'
-          situacaoPartido = detalhes.candidato?.situacaoCandidato || 'Não informado'
-          dataNascimento = detalhes.dataDeNascimento || detalhes.dataNascimento || null
-          genero = detalhes.descricaoSexo || 'Não informado'
-          corRaca = detalhes.descricaoCorRaca || 'Não informado'
-          grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
+        const detalhes = await fetchResiliente(
+          `/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`,
+        )
+        totalBensDeclarados = detalhes.totalDeBens || 0
+        limiteGastos1T = detalhes.gastoCampanha1T || 0
+        limiteGastos2T = detalhes.gastoCampanha2T || 0
+        listaBens = detalhes.bens || []
+        situacaoCand = detalhes.descricaoSituacao || 'Não informado'
+        situacaoPartido = detalhes.candidato?.situacaoCandidato || 'Não informado'
+        dataNascimento = detalhes.dataDeNascimento || detalhes.dataNascimento || null
+        genero = detalhes.descricaoSexo || 'Não informado'
+        corRaca = detalhes.descricaoCorRaca || 'Não informado'
+        grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
+        listaVices = cacarVicesTSE(detalhes)
 
-          listaVices = cacarVicesTSE(detalhes)
-
-          const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
-          fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
-        }
+        const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
+        fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
       } catch (e) {
         console.warn(`Aviso: Detalhes indisponíveis`)
       }
 
       try {
-        const urlEleicoes = `/api-tse/divulga/rest/v1/candidato/${cand.id}/eleicoes-anteriores`
-        const respostaEleicoes = await fetch(urlEleicoes)
-        if (respostaEleicoes.ok) historicoEleicoes = await respostaEleicoes.json()
+        historicoEleicoes = await fetchResiliente(`/candidato/${cand.id}/eleicoes-anteriores`)
       } catch (e) {
         historicoEleicoes = [
           {
@@ -211,8 +238,8 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         ano: ANO,
       })
 
-      // Pausa rápida para não travar a sua rede local
-      await sleep(500)
+      // Mantém a pausa de segurança!
+      await sleep(800)
     }
   } catch (erro) {
     console.error('❌ Erro ao baixar dados:', erro)
@@ -222,37 +249,26 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
 
 export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) => {
   try {
-    const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`
-    const respostaDetalhes = await fetch(urlDetalhes)
-    if (!respostaDetalhes.ok) throw new Error('Falha ao comunicar com o TSE')
+    const detalhes = await fetchResiliente(
+      `/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`,
+    )
 
-    const detalhes = await respostaDetalhes.json()
-
-    const novaSitCand = detalhes.descricaoSituacao || 'Não informado'
-    const novaSitPart = detalhes.candidato?.situacaoCandidato || 'Não informado'
-    const totalBens = detalhes.totalDeBens || 0
-    const bens = detalhes.bens || []
-    const limiteGastos1T = detalhes.gastoCampanha1T || 0
-    const limiteGastos2T = detalhes.gastoCampanha2T || 0
-    const dataDeNascimento = detalhes.dataDeNascimento || detalhes.dataNascimento || null
-    const genero = detalhes.descricaoSexo || 'Não informado'
-    const corRaca = detalhes.descricaoCorRaca || 'Não informado'
-    const grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
-
-    const vicesCacados = cacarVicesTSE(detalhes)
+    const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
+    const novaFotoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${idTse}/${uf}`
 
     const dadosAtualizados = {
-      situacaoCandidatura: novaSitCand,
-      situacaoPartido: novaSitPart,
-      totalBens: totalBens,
-      bens: bens,
-      limiteGastos1T: limiteGastos1T,
-      limiteGastos2T: limiteGastos2T,
-      dataDeNascimento: dataDeNascimento,
-      genero: genero,
-      corRaca: corRaca,
-      grauInstrucao: grauInstrucao,
-      vices: vicesCacados,
+      situacaoCandidatura: detalhes.descricaoSituacao || 'Não informado',
+      situacaoPartido: detalhes.candidato?.situacaoCandidato || 'Não informado',
+      totalBens: detalhes.totalDeBens || 0,
+      bens: detalhes.bens || [],
+      limiteGastos1T: detalhes.gastoCampanha1T || 0,
+      limiteGastos2T: detalhes.gastoCampanha2T || 0,
+      dataDeNascimento: detalhes.dataDeNascimento || detalhes.dataNascimento || null,
+      genero: detalhes.descricaoSexo || 'Não informado',
+      corRaca: detalhes.descricaoCorRaca || 'Não informado',
+      grauInstrucao: detalhes.descricaoGrauInstrucao || 'Não informado',
+      vices: cacarVicesTSE(detalhes),
+      fotoUrl: novaFotoUrl,
     }
 
     const docRef = doc(db, 'candidatos', candidatoFirebaseId)
@@ -314,12 +330,7 @@ export const registrarVoto = async (candidatoId, nomeUrna, partido, fotoUrl) => 
     if (votoSnap.exists()) {
       await updateDoc(votoRef, { totalVotos: increment(1) })
     } else {
-      await setDoc(votoRef, {
-        nomeUrna,
-        partido,
-        fotoUrl,
-        totalVotos: 1,
-      })
+      await setDoc(votoRef, { nomeUrna, partido, fotoUrl, totalVotos: 1 })
     }
     return true
   } catch (error) {
@@ -332,7 +343,6 @@ export const buscarResultadosEnquete = async () => {
   try {
     const q = query(collection(db, 'enquete_presidente'))
     const snapshot = await getDocs(q)
-
     let resultados = []
     let totalGeral = 0
 
@@ -342,10 +352,7 @@ export const buscarResultadosEnquete = async () => {
       totalGeral += data.totalVotos || 0
     })
 
-    return {
-      resultados: resultados.sort((a, b) => b.totalVotos - a.totalVotos),
-      totalGeral,
-    }
+    return { resultados: resultados.sort((a, b) => b.totalVotos - a.totalVotos), totalGeral }
   } catch (error) {
     console.error('Erro ao buscar resultados:', error)
     return { resultados: [], totalGeral: 0 }
