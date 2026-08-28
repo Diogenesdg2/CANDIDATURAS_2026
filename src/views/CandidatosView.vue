@@ -11,14 +11,26 @@ const route = useRoute()
 const ufUrl = route.query.uf || ''
 const cargoUrl = route.query.cargo || ''
 
-// INICIAMOS SEM CARREGAR NADA! A página abre instantaneamente.
 const carregando = ref(false)
 const buscaRealizada = ref(false)
 
-const busca = ref('')
-const partidoSelecionado = ref('')
-const candidatos = ref([])
+// ====================================================
+// VARIÁVEIS DE RASCUNHO (Ligadas visualmente aos botões)
+// ====================================================
+const inputBusca = ref('')
+const inputPartido = ref('')
+const inputCargo = ref('')
+const inputSituacao = ref('')
 
+// ====================================================
+// VARIÁVEIS APLICADAS (Só recebem valor após clicar em "Filtrar")
+// ====================================================
+const filtroBusca = ref('')
+const filtroPartido = ref('')
+const filtroCargo = ref('')
+const filtroSituacao = ref('')
+
+const candidatos = ref([])
 const atualizandoId = ref(null)
 const atualizandoTodos = ref(false)
 const progressoGlobal = ref({ atual: 0, total: 0 })
@@ -31,7 +43,7 @@ const dadosRaioX = ref(null)
 const raioxLoading = ref(false)
 const deputadosAtuais = ref([])
 
-// Lista oficial do TSE de partidos ativos para pré-carregar o Filtro sem precisar bater no banco
+// LISTAS OFICIAIS PARA OS SELECTS
 const partidosOficiais = [
   'AGIR',
   'AVANTE',
@@ -65,36 +77,85 @@ const partidosOficiais = [
   'UP',
 ]
 
+const cargosOficiais = [
+  'Presidente',
+  'Vice-Presidente',
+  'Governador',
+  'Vice-Governador',
+  'Senador',
+  'Deputado Federal',
+  'Deputado Estadual',
+  'Deputado Distrital',
+  '1º Suplente',
+  '2º Suplente',
+]
+
+const situacoesOficiais = [
+  'Aguardando',
+  'Deferido',
+  'Deferido com recurso',
+  'Indeferido',
+  'Indeferido com recurso',
+  'Cassado',
+  'Cancelado',
+  'Renúncia',
+  'Falecido',
+  'Não informado',
+]
+
 // ====================================================
-// FUNÇÃO DE BUSCA SOB DEMANDA
+// APLICAR FILTROS (Disparado apenas no clique do botão)
 // ====================================================
-const realizarBusca = async () => {
+const aplicarFiltros = async () => {
+  // Se for a primeira vez, busca no Firebase
   if (candidatos.value.length === 0) {
     carregando.value = true
     candidatos.value = await buscarCandidatos(ufUrl, cargoUrl)
     carregando.value = false
   }
+
+  // Transfere os valores do "Rascunho" para o "Filtro Real"
+  filtroBusca.value = inputBusca.value
+  filtroPartido.value = inputPartido.value
+  filtroCargo.value = inputCargo.value
+  filtroSituacao.value = inputSituacao.value
+
   buscaRealizada.value = true
 }
 
-const limparBusca = () => {
-  busca.value = ''
-  partidoSelecionado.value = ''
-  buscaRealizada.value = false // Volta para a tela inicial vazia
+const limparFiltros = () => {
+  inputBusca.value = ''
+  inputPartido.value = ''
+  inputCargo.value = ''
+  inputSituacao.value = ''
+
+  filtroBusca.value = ''
+  filtroPartido.value = ''
+  filtroCargo.value = ''
+  filtroSituacao.value = ''
+
+  buscaRealizada.value = false
 }
 
-// Filtra instantaneamente na memória APÓS a primeira busca
+// Filtro processado instantaneamente na memória baseada nas VARIÁVEIS APLICADAS
 const candidatosFiltrados = computed(() => {
   if (!buscaRealizada.value) return []
 
   return candidatos.value.filter((c) => {
     const nome = (c.nomeUrna || c.nome || '').toLowerCase()
     const completo = (c.nomeCompleto || '').toLowerCase()
-    const termo = busca.value.toLowerCase()
+    const termoBusca = filtroBusca.value.toLowerCase()
 
-    const combinaNome = nome.includes(termo) || completo.includes(termo)
-    const combinaPartido = !partidoSelecionado.value || c.partido === partidoSelecionado.value
-    return combinaNome && combinaPartido
+    const bateNome = nome.includes(termoBusca) || completo.includes(termoBusca)
+    const batePartido = !filtroPartido.value || c.partido === filtroPartido.value
+    const bateCargo = !filtroCargo.value || c.cargo === filtroCargo.value
+
+    const bateSituacao =
+      !filtroSituacao.value ||
+      (c.situacaoCandidatura || 'Não informado').toUpperCase() ===
+        filtroSituacao.value.toUpperCase()
+
+    return bateNome && batePartido && bateCargo && bateSituacao
   })
 })
 
@@ -309,12 +370,11 @@ const tituloPagina = computed(() => {
 })
 
 onMounted(async () => {
-  // 🌟 MÁGICA AQUI: Se veio da Home (tem uf e cargo na URL), dispara a busca automaticamente!
+  // Se vier da tela inicial, busca automaticamente
   if (ufUrl && cargoUrl) {
-    await realizarBusca()
+    await aplicarFiltros()
   }
 
-  // Apenas busca os dados base da câmara (levinho, fica no background)
   try {
     const res = await fetch('https://dadosabertos.camara.leg.br/api/v2/deputados')
     if (res.ok) {
@@ -445,8 +505,8 @@ const isInelegivel = (situacao) => {
 const tratarErroFoto = (e, candidato) => {
   if (!e.target.dataset.triedFix) {
     e.target.dataset.triedFix = 'true'
-    const idCorreto = candidato.uf === 'BR' ? '2039602022' : '2040602022'
-    e.target.src = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idCorreto}/${candidato.idTse}/${candidato.uf}`
+    const ID_ELEICAO_2026 = '20322002026'
+    e.target.src = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO_2026}/${candidato.idTse}/${candidato.uf}`
   } else {
     e.target.onerror = null
     e.target.src =
@@ -485,26 +545,25 @@ const compartilharWhatsApp = (candidato) => {
 
 <template>
   <main class="space-y-6 relative pb-20 transition-colors duration-300">
-    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-      <div>
-        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white" tabindex="0">
-          {{ tituloPagina }}
-        </h1>
-        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1" aria-live="polite">
-          <span v-if="buscaRealizada" class="font-semibold text-blue-600 dark:text-blue-400"
-            >{{ candidatosFiltrados.length }} candidatos encontrados</span
-          >
-          <span v-else>Faça uma pesquisa para listar os registros.</span>
-        </p>
-      </div>
+    <header class="flex flex-col gap-5">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white" tabindex="0">
+            {{ tituloPagina }}
+          </h1>
+          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1" aria-live="polite">
+            <span v-if="buscaRealizada" class="font-semibold text-blue-600 dark:text-blue-400"
+              >{{ candidatosFiltrados.length }} candidatos encontrados</span
+            >
+            <span v-else>Faça uma pesquisa para listar os registros.</span>
+          </p>
+        </div>
 
-      <div class="flex flex-col xl:flex-row gap-3 items-stretch xl:items-center">
         <button
           v-if="buscaRealizada && candidatosFiltrados.length > 0"
           @click="atualizarTodosStatus"
           :disabled="atualizandoTodos"
-          aria-label="Atualizar situação de todos os candidatos exibidos"
-          class="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 focus:ring-4 focus:ring-slate-300 dark:focus:ring-slate-600 disabled:bg-slate-400 dark:disabled:bg-slate-800 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+          class="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 focus:ring-4 focus:ring-slate-300 dark:focus:ring-slate-600 disabled:bg-slate-400 dark:disabled:bg-slate-800 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2 self-start md:self-auto"
         >
           <svg
             v-if="atualizandoTodos"
@@ -550,38 +609,58 @@ const compartilharWhatsApp = (candidato) => {
               : 'Sincronizar Tela com TSE'
           }}
         </button>
+      </div>
 
-        <div class="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
-          <input
-            v-model="busca"
-            @keyup.enter="realizarBusca"
-            type="search"
-            placeholder="Buscar por nome..."
-            aria-label="Buscar candidato por nome"
-            class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm w-full sm:w-auto transition-colors"
-          />
-          <select
-            v-model="partidoSelecionado"
-            @change="realizarBusca"
-            aria-label="Filtrar candidatos por partido"
-            class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm w-full sm:w-auto transition-colors"
-          >
-            <option value="">Todos os partidos</option>
-            <option v-for="partido in partidosOficiais" :key="partido" :value="partido">
-              {{ partido }}
-            </option>
-          </select>
+      <!-- BARRA DE FILTROS AVANÇADOS (USANDO OS INPUTS DE RASCUNHO) -->
+      <div
+        class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col lg:flex-row gap-3 items-stretch lg:items-center"
+      >
+        <input
+          v-model="inputBusca"
+          @keyup.enter="aplicarFiltros"
+          type="search"
+          placeholder="Buscar por nome..."
+          class="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+        />
+
+        <select
+          v-model="inputCargo"
+          class="w-full lg:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors appearance-none"
+        >
+          <option value="">Todos os Cargos</option>
+          <option v-for="c in cargosOficiais" :key="c" :value="c">{{ c }}</option>
+        </select>
+
+        <select
+          v-model="inputPartido"
+          class="w-full lg:w-40 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors appearance-none"
+        >
+          <option value="">Partidos (Todos)</option>
+          <option v-for="p in partidosOficiais" :key="p" :value="p">{{ p }}</option>
+        </select>
+
+        <select
+          v-model="inputSituacao"
+          class="w-full lg:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors appearance-none"
+        >
+          <option value="">Qualquer Situação</option>
+          <option v-for="s in situacoesOficiais" :key="s" :value="s">{{ s }}</option>
+        </select>
+
+        <div
+          class="flex gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-700 lg:pl-3"
+        >
           <button
-            @click="realizarBusca"
-            class="px-5 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-sm focus:ring-2 focus:ring-blue-400 shrink-0"
+            @click="aplicarFiltros"
+            class="flex-1 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-sm focus:ring-2 focus:ring-blue-400"
           >
-            Buscar
+            Filtrar
           </button>
           <button
             v-if="buscaRealizada"
-            @click="limparBusca"
-            class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm transition-all shadow-sm shrink-0"
-            title="Limpar pesquisa"
+            @click="limparFiltros"
+            class="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm transition-all shadow-sm"
+            title="Limpar todos os filtros"
           >
             Limpar
           </button>
@@ -612,10 +691,10 @@ const compartilharWhatsApp = (candidato) => {
           ></path>
         </svg>
       </div>
-      <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Pronto para pesquisar!</h2>
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Painel de Filtros</h2>
       <p class="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto px-4">
-        Digite o nome de um candidato, selecione um partido específico ou clique em
-        <strong>"Buscar"</strong> para listar os registros.
+        Utilize a barra acima para cruzar informações de cargo, partido e situação judicial, e
+        clique em <strong>"Filtrar"</strong>.
       </p>
     </div>
 
@@ -684,7 +763,7 @@ const compartilharWhatsApp = (candidato) => {
                 class="text-xs text-slate-500 dark:text-slate-400"
                 :aria-label="`Partido: ${candidato.partido}`"
               >
-                {{ candidato.partido }}
+                {{ candidato.cargo }} • {{ candidato.partido }}
               </p>
 
               <div
@@ -717,8 +796,7 @@ const compartilharWhatsApp = (candidato) => {
                     </template>
                     <template v-else>
                       <span class="italic opacity-70 block mt-0.5 leading-snug">
-                        O TSE ainda não processou a documentação. A informação oficial do vice está
-                        indisponível no momento.
+                        O TSE ainda não processou a documentação.
                       </span>
                     </template>
                   </p>
@@ -750,7 +828,7 @@ const compartilharWhatsApp = (candidato) => {
               <p class="text-sm font-bold truncate">
                 {{ candidato.situacaoPartido || 'Não informado' }}
               </p>
-              <p class="text-[10px] uppercase opacity-90">Situação Partido/Federação/Coligação</p>
+              <p class="text-[10px] uppercase opacity-90">Situação Coligação</p>
             </div>
             <button
               @click="verificarStatusEmTempoReal(candidato)"

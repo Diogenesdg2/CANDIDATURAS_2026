@@ -90,37 +90,41 @@ const cacarVicesTSE = (detalhes) => {
 
 export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgresso) => {
   try {
+    // 🌟 MÁGICA AQUI: Pega os IDs de quem JÁ ESTÁ no Firebase
     const q = query(
       candidatosCollection,
       where('uf', '==', uf),
       where('codigoCargo', '==', Number(codigoCargo)),
     )
     const snapshot = await getDocs(q)
-    if (!snapshot.empty) return
+    const idsJaSalvos = snapshot.docs.map((doc) => String(doc.data().idTse))
 
     const nomeCargo = CARGOS[codigoCargo]
-
-    // Apenas a rota do Localhost (Vite)
     const urlProxy = `/api-tse/divulga/rest/v1/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`
     const resposta = await fetch(urlProxy)
 
     if (!resposta.ok) throw new Error(`O TSE retornou um erro na lista geral: ${resposta.status}`)
 
     const dados = await resposta.json()
-    const listaCandidatos = dados.candidatos || []
-    const totalCandidatos = listaCandidatos.length
+    const listaCandidatosTSE = dados.candidatos || []
 
-    if (totalCandidatos === 0) {
+    // 🌟 Filtra a lista do TSE tirando quem já foi salvo no seu banco!
+    const candidatosPendentes = listaCandidatosTSE.filter(
+      (cand) => !idsJaSalvos.includes(String(cand.id)),
+    )
+    const totalPendentes = candidatosPendentes.length
+
+    if (totalPendentes === 0) {
       alert(
-        `Atenção: O TSE informou que existem 0 candidatos registrados para ${nomeCargo} em ${uf} neste momento.`,
+        `Sucesso! Todos os candidatos para ${nomeCargo} em ${uf} já estão 100% sincronizados no seu banco.`,
       )
       return
     }
 
     let atual = 0
-    for (const cand of listaCandidatos) {
+    for (const cand of candidatosPendentes) {
       atual++
-      if (onProgresso) onProgresso(atual, totalCandidatos, cand.nomeUrna || 'Candidato')
+      if (onProgresso) onProgresso(atual, totalPendentes, cand.nomeUrna || 'Candidato')
 
       let totalBensDeclarados = 0
       let listaBens = []
@@ -158,7 +162,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
           fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
         }
       } catch (e) {
-        console.warn(`Aviso: Detalhes indisponíveis`)
+        console.warn(`Aviso: Detalhes indisponíveis para ${cand.nomeUrna}`)
       }
 
       try {
@@ -205,7 +209,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         ano: ANO,
       })
 
-      // Pausa longa (1.5s) para o TSE não te dar o erro 429 de novo!
+      // Mantém a pausa anti-bloqueio!
       await sleep(1500)
     }
   } catch (erro) {
