@@ -11,23 +11,38 @@ const route = useRoute()
 const ufUrl = route.query.uf || ''
 const cargoUrl = route.query.cargo || ''
 
+const CARGOS = {
+  1: 'Presidente',
+  2: 'Vice-Presidente',
+  3: 'Governador',
+  4: 'Vice-Governador',
+  5: 'Senador',
+  6: 'Deputado Federal',
+  7: 'Deputado Estadual',
+  8: 'Deputado Distrital',
+  9: '1º Suplente',
+  10: '2º Suplente',
+}
+
 const carregando = ref(false)
 const buscaRealizada = ref(false)
 
 // ====================================================
-// VARIÁVEIS DE RASCUNHO (Ligadas visualmente aos botões)
+// VARIÁVEIS DE RASCUNHO (Filtros na interface)
 // ====================================================
 const inputBusca = ref('')
+const inputUf = ref(ufUrl || '')
+const inputCargo = ref(cargoUrl ? CARGOS[cargoUrl] || '' : '')
 const inputPartido = ref('')
-const inputCargo = ref('')
 const inputSituacao = ref('')
 
 // ====================================================
-// VARIÁVEIS APLICADAS (Só recebem valor após clicar em "Filtrar")
+// VARIÁVEIS APLICADAS (Confirmadas após clicar em "Filtrar")
 // ====================================================
 const filtroBusca = ref('')
+const filtroUf = ref(ufUrl || '')
+const filtroCargo = ref(cargoUrl ? CARGOS[cargoUrl] || '' : '')
 const filtroPartido = ref('')
-const filtroCargo = ref('')
 const filtroSituacao = ref('')
 
 const candidatos = ref([])
@@ -43,7 +58,38 @@ const dadosRaioX = ref(null)
 const raioxLoading = ref(false)
 const deputadosAtuais = ref([])
 
-// LISTAS OFICIAIS PARA OS SELECTS
+// LISTAS OFICIAIS
+const ufsOficiais = [
+  { sigla: 'BR', nome: 'Brasil (Nacional)' },
+  { sigla: 'AC', nome: 'Acre (AC)' },
+  { sigla: 'AL', nome: 'Alagoas (AL)' },
+  { sigla: 'AP', nome: 'Amapá (AP)' },
+  { sigla: 'AM', nome: 'Amazonas (AM)' },
+  { sigla: 'BA', nome: 'Bahia (BA)' },
+  { sigla: 'CE', nome: 'Ceará (CE)' },
+  { sigla: 'DF', nome: 'Distrito Federal (DF)' },
+  { sigla: 'ES', nome: 'Espírito Santo (ES)' },
+  { sigla: 'GO', nome: 'Goiás (GO)' },
+  { sigla: 'MA', nome: 'Maranhão (MA)' },
+  { sigla: 'MT', nome: 'Mato Grosso (MT)' },
+  { sigla: 'MS', nome: 'Mato Grosso do Sul (MS)' },
+  { sigla: 'MG', nome: 'Minas Gerais (MG)' },
+  { sigla: 'PA', nome: 'Pará (PA)' },
+  { sigla: 'PB', nome: 'Paraíba (PB)' },
+  { sigla: 'PR', nome: 'Paraná (PR)' },
+  { sigla: 'PE', nome: 'Pernambuco (PE)' },
+  { sigla: 'PI', nome: 'Piauí (PI)' },
+  { sigla: 'RJ', nome: 'Rio de Janeiro (RJ)' },
+  { sigla: 'RN', nome: 'Rio Grande do Norte (RN)' },
+  { sigla: 'RS', nome: 'Rio Grande do Sul (RS)' },
+  { sigla: 'RO', nome: 'Rondônia (RO)' },
+  { sigla: 'RR', nome: 'Roraima (RR)' },
+  { sigla: 'SC', nome: 'Santa Catarina (SC)' },
+  { sigla: 'SP', nome: 'São Paulo (SP)' },
+  { sigla: 'SE', nome: 'Sergipe (SE)' },
+  { sigla: 'TO', nome: 'Tocantins (TO)' },
+]
+
 const partidosOficiais = [
   'AGIR',
   'AVANTE',
@@ -91,7 +137,7 @@ const cargosOficiais = [
 ]
 
 const situacoesOficiais = [
-  'Aguardando',
+  'Aguardando julgamento',
   'Deferido',
   'Deferido com recurso',
   'Indeferido',
@@ -104,20 +150,19 @@ const situacoesOficiais = [
 ]
 
 // ====================================================
-// APLICAR FILTROS (Disparado apenas no clique do botão)
+// FUNÇÃO DE BUSCA E FILTRAGEM
 // ====================================================
 const aplicarFiltros = async () => {
-  // Se for a primeira vez, busca no Firebase
   if (candidatos.value.length === 0) {
     carregando.value = true
-    candidatos.value = await buscarCandidatos(ufUrl, cargoUrl)
+    candidatos.value = await buscarCandidatos()
     carregando.value = false
   }
 
-  // Transfere os valores do "Rascunho" para o "Filtro Real"
   filtroBusca.value = inputBusca.value
-  filtroPartido.value = inputPartido.value
+  filtroUf.value = inputUf.value
   filtroCargo.value = inputCargo.value
+  filtroPartido.value = inputPartido.value
   filtroSituacao.value = inputSituacao.value
 
   buscaRealizada.value = true
@@ -125,19 +170,20 @@ const aplicarFiltros = async () => {
 
 const limparFiltros = () => {
   inputBusca.value = ''
-  inputPartido.value = ''
+  inputUf.value = ''
   inputCargo.value = ''
+  inputPartido.value = ''
   inputSituacao.value = ''
 
   filtroBusca.value = ''
-  filtroPartido.value = ''
+  filtroUf.value = ''
   filtroCargo.value = ''
+  filtroPartido.value = ''
   filtroSituacao.value = ''
 
   buscaRealizada.value = false
 }
 
-// Filtro processado instantaneamente na memória baseada nas VARIÁVEIS APLICADAS
 const candidatosFiltrados = computed(() => {
   if (!buscaRealizada.value) return []
 
@@ -147,16 +193,47 @@ const candidatosFiltrados = computed(() => {
     const termoBusca = filtroBusca.value.toLowerCase()
 
     const bateNome = nome.includes(termoBusca) || completo.includes(termoBusca)
-    const batePartido = !filtroPartido.value || c.partido === filtroPartido.value
+    const bateUf = !filtroUf.value || c.uf === filtroUf.value
     const bateCargo = !filtroCargo.value || c.cargo === filtroCargo.value
+    const batePartido = !filtroPartido.value || c.partido === filtroPartido.value
 
     const bateSituacao =
       !filtroSituacao.value ||
-      (c.situacaoCandidatura || 'Não informado').toUpperCase() ===
-        filtroSituacao.value.toUpperCase()
+      (c.situacaoCandidatura || 'Não informado')
+        .toUpperCase()
+        .includes(filtroSituacao.value.toUpperCase())
 
-    return bateNome && batePartido && bateCargo && bateSituacao
+    return bateNome && bateUf && bateCargo && batePartido && bateSituacao
   })
+})
+
+const tituloPagina = computed(() => {
+  if (filtroUf.value || filtroCargo.value) {
+    const nomeCargo = filtroCargo.value || 'Candidaturas'
+    const textoUf = filtroUf.value
+      ? filtroUf.value === 'BR'
+        ? 'em todo o Brasil'
+        : `em ${filtroUf.value}`
+      : ''
+    return `${nomeCargo} ${textoUf}`.trim()
+  }
+  return 'Explorador de Candidatos'
+})
+
+onMounted(async () => {
+  if (ufUrl || cargoUrl) {
+    await aplicarFiltros()
+  }
+
+  try {
+    const res = await fetch('https://dadosabertos.camara.leg.br/api/v2/deputados')
+    if (res.ok) {
+      const data = await res.json()
+      deputadosAtuais.value = data.dados
+    }
+  } catch (e) {
+    console.warn('Aviso: Não foi possível carregar a lista prévia da Câmara.', e)
+  }
 })
 
 const abrirModal = async (candidato, tipo) => {
@@ -347,45 +424,6 @@ const obterMaiorBem = (bens) => {
   return ordenado[0]
 }
 
-const CARGOS = {
-  1: 'Presidente',
-  2: 'Vice-Presidente',
-  3: 'Governador',
-  4: 'Vice-Governador',
-  5: 'Senador',
-  6: 'Deputado Federal',
-  7: 'Deputado Estadual',
-  8: 'Deputado Distrital',
-  9: '1º Suplente',
-  10: '2º Suplente',
-}
-
-const tituloPagina = computed(() => {
-  if (cargoUrl && ufUrl) {
-    const nomeCargo = CARGOS[cargoUrl] || 'Candidatos'
-    const textoUf = ufUrl === 'BR' ? 'no Brasil' : `em ${ufUrl}`
-    return `Candidaturas para ${nomeCargo} ${textoUf}`
-  }
-  return 'Todos os Candidatos'
-})
-
-onMounted(async () => {
-  // Se vier da tela inicial, busca automaticamente
-  if (ufUrl && cargoUrl) {
-    await aplicarFiltros()
-  }
-
-  try {
-    const res = await fetch('https://dadosabertos.camara.leg.br/api/v2/deputados')
-    if (res.ok) {
-      const data = await res.json()
-      deputadosAtuais.value = data.dados
-    }
-  } catch (e) {
-    console.warn('Aviso: Não foi possível carregar a lista prévia da Câmara.', e)
-  }
-})
-
 const isDeputadoCamara = (candidato) => {
   if (deputadosAtuais.value.length === 0) return false
 
@@ -432,6 +470,7 @@ const verificarStatusEmTempoReal = async (candidato) => {
     candidato.limiteGastos2T = novosDados.limiteGastos2T
     candidato.dataDeNascimento = novosDados.dataDeNascimento
     candidato.vices = [...novosDados.vices]
+    candidato.fotoUrl = novosDados.fotoUrl
   } catch (error) {
     alert('A requisição falhou no servidor TSE. Tente novamente mais tarde.')
   } finally {
@@ -460,13 +499,11 @@ const atualizarTodosStatus = async () => {
       candidato.limiteGastos2T = novosDados.limiteGastos2T
       candidato.dataDeNascimento = novosDados.dataDeNascimento
       candidato.vices = [...novosDados.vices]
+      candidato.fotoUrl = novosDados.fotoUrl
     } catch (error) {
-      console.warn(
-        `Falha ao sincronizar ${candidato.nomeUrna}. O servidor proxy bloqueou a requisição.`,
-      )
+      console.warn(`Falha ao sincronizar ${candidato.nomeUrna}.`)
     }
     progressoGlobal.value.atual++
-
     await sleep(1000)
   }
 
@@ -611,9 +648,9 @@ const compartilharWhatsApp = (candidato) => {
         </button>
       </div>
 
-      <!-- BARRA DE FILTROS AVANÇADOS (USANDO OS INPUTS DE RASCUNHO) -->
+      <!-- BARRA DE FILTROS COM SELEÇÃO DE ESTADO (UF) -->
       <div
-        class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col lg:flex-row gap-3 items-stretch lg:items-center"
+        class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row gap-3 items-stretch xl:items-center"
       >
         <input
           v-model="inputBusca"
@@ -623,9 +660,18 @@ const compartilharWhatsApp = (candidato) => {
           class="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         />
 
+        <!-- FILTRO DE ESTADO (UF) -->
+        <select
+          v-model="inputUf"
+          class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+        >
+          <option value="">Todos os Estados</option>
+          <option v-for="u in ufsOficiais" :key="u.sigla" :value="u.sigla">{{ u.nome }}</option>
+        </select>
+
         <select
           v-model="inputCargo"
-          class="w-full lg:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors appearance-none"
+          class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         >
           <option value="">Todos os Cargos</option>
           <option v-for="c in cargosOficiais" :key="c" :value="c">{{ c }}</option>
@@ -633,7 +679,7 @@ const compartilharWhatsApp = (candidato) => {
 
         <select
           v-model="inputPartido"
-          class="w-full lg:w-40 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors appearance-none"
+          class="w-full xl:w-36 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         >
           <option value="">Partidos (Todos)</option>
           <option v-for="p in partidosOficiais" :key="p" :value="p">{{ p }}</option>
@@ -641,14 +687,14 @@ const compartilharWhatsApp = (candidato) => {
 
         <select
           v-model="inputSituacao"
-          class="w-full lg:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors appearance-none"
+          class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         >
           <option value="">Qualquer Situação</option>
           <option v-for="s in situacoesOficiais" :key="s" :value="s">{{ s }}</option>
         </select>
 
         <div
-          class="flex gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-700 lg:pl-3"
+          class="flex gap-2 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 xl:border-l border-slate-200 dark:border-slate-700 xl:pl-3"
         >
           <button
             @click="aplicarFiltros"
@@ -691,10 +737,12 @@ const compartilharWhatsApp = (candidato) => {
           ></path>
         </svg>
       </div>
-      <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Painel de Filtros</h2>
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-2">
+        Painel de Filtros Avançado
+      </h2>
       <p class="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto px-4">
-        Utilize a barra acima para cruzar informações de cargo, partido e situação judicial, e
-        clique em <strong>"Filtrar"</strong>.
+        Cruze informações de Estado, Cargo, Partido e Situação da Candidatura, e clique em
+        <strong>"Filtrar"</strong>.
       </p>
     </div>
 
@@ -730,8 +778,11 @@ const compartilharWhatsApp = (candidato) => {
             class="relative mb-4 flex justify-center bg-slate-50 dark:bg-slate-800/50 py-4 rounded-xl border border-slate-100 dark:border-slate-700/50"
             :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
+            <!-- referrerpolicy="no-referrer" evita o bloqueio de hotlink do TSE -->
             <img
               :src="candidato.fotoUrl"
+              referrerpolicy="no-referrer"
+              loading="lazy"
               :alt="`Foto oficial de urna do candidato ${candidato.nomeUrna}`"
               class="w-32 h-40 object-cover border border-slate-300 dark:border-slate-600 shadow-sm rounded bg-slate-200 dark:bg-slate-700"
               @error="(e) => tratarErroFoto(e, candidato)"
@@ -743,27 +794,36 @@ const compartilharWhatsApp = (candidato) => {
             :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
             <div class="w-full">
-              <div class="flex items-center gap-2 mb-1">
+              <div class="flex items-center gap-1.5 flex-wrap mb-1.5">
                 <span
                   class="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                  aria-label="Número de urna"
-                  >Nº {{ candidato.numero }}</span
                 >
+                  Nº {{ candidato.numero }}
+                </span>
+
+                <!-- BADGE DE ESTADO/UF VISÍVEL NO CARD -->
+                <span
+                  class="inline-block bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full uppercase"
+                >
+                  {{ candidato.uf === 'BR' ? 'Brasil' : candidato.uf }}
+                </span>
+
                 <span
                   class="inline-block bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700"
-                  :aria-label="`Idade: ${calcularIdade(candidato.dataDeNascimento)}`"
                 >
                   {{ calcularIdade(candidato.dataDeNascimento) }}
                 </span>
               </div>
+
               <h2 class="text-lg font-bold text-slate-900 dark:text-white leading-tight">
                 {{ candidato.nomeUrna }}
               </h2>
-              <p
-                class="text-xs text-slate-500 dark:text-slate-400"
-                :aria-label="`Partido: ${candidato.partido}`"
-              >
-                {{ candidato.cargo }} • {{ candidato.partido }}
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {{ candidato.cargo }}
+                <span class="font-bold text-slate-700 dark:text-slate-300"
+                  >({{ candidato.uf === 'BR' ? 'Nacional' : candidato.uf }})</span
+                >
+                • {{ candidato.partido }}
               </p>
 
               <div
@@ -994,7 +1054,7 @@ const compartilharWhatsApp = (candidato) => {
       </article>
     </section>
 
-    <!-- CASO O USUÁRIO REALIZE UMA BUSCA E NÃO ENCONTRE NADA -->
+    <!-- CASO NÃO ENCONTRE NADA -->
     <div
       v-else-if="buscaRealizada"
       class="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors shadow-sm"
@@ -1042,7 +1102,7 @@ const compartilharWhatsApp = (candidato) => {
     </div>
   </main>
 
-  <!-- MODAL DE BENS COM CASAS DECIMAIS E DARK MODE -->
+  <!-- MODAL DE BENS -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
@@ -1266,7 +1326,7 @@ const compartilharWhatsApp = (candidato) => {
     </div>
   </div>
 
-  <!-- MODAL DE COMPARAÇÃO "MANO A MANO" COM DARK MODE -->
+  <!-- MODAL DE COMPARAÇÃO VS -->
   <div
     v-if="modalComparacaoAberto"
     class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
@@ -1320,6 +1380,8 @@ const compartilharWhatsApp = (candidato) => {
             >
               <img
                 :src="cand.fotoUrl"
+                referrerpolicy="no-referrer"
+                loading="lazy"
                 :alt="`Foto oficial de ${cand.nomeUrna}`"
                 class="w-24 h-32 object-cover rounded-xl shadow-md border-2 border-white dark:border-slate-700 mb-3 bg-slate-200 dark:bg-slate-800"
                 @error="
@@ -1343,6 +1405,7 @@ const compartilharWhatsApp = (candidato) => {
                   {{ cand.nomeUrna }}
                 </h4>
                 <p class="text-sm font-bold text-slate-500 dark:text-slate-400">
+                  {{ cand.cargo }} ({{ cand.uf === 'BR' ? 'Nacional' : cand.uf }}) •
                   {{ cand.partido }}
                 </p>
 
