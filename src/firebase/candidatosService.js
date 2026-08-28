@@ -14,16 +14,7 @@ import { db } from './config'
 
 const candidatosCollection = collection(db, 'candidatos')
 
-// =========================================================================
-// 🌟 TENTATIVA 2: allOrigins (Proxy que burla firewalls governamentais)
-// =========================================================================
-const montarUrlTse = (caminho) => {
-  const baseUrl = 'https://divulgacandcontas.tse.jus.br/divulga/rest/v1'
-  // allOrigins precisa buscar o link cru (raw)
-  return `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl + caminho)}`
-}
-
-// Função auxiliar para evitar bloqueio por excesso de velocidade
+// Função auxiliar para criar uma pausa (delay) e não sobrecarregar o proxy local
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export const buscarCandidatos = async (ufFiltro = null, cargoFiltro = null) => {
@@ -114,11 +105,9 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
 
     const nomeCargo = CARGOS[codigoCargo]
 
-    // Usando o Proxy Neutro
-    const urlLista = montarUrlTse(
-      `/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`,
-    )
-    const resposta = await fetch(urlLista)
+    // VOLTAMOS AO PROXY DO VITE (Localhost)
+    const urlProxy = `/api-tse/divulga/rest/v1/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`
+    const resposta = await fetch(urlProxy)
 
     if (!resposta.ok) throw new Error(`O TSE retornou um erro na lista geral: ${resposta.status}`)
 
@@ -151,13 +140,10 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       let grauInstrucao = 'Não informado'
       let listaVices = []
 
-      // A FOTO não precisa de Proxy, o navegador baixa direto sem problemas de CORS
       let fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO}/${cand.id}/${uf}`
 
       try {
-        const urlDetalhes = montarUrlTse(
-          `/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`,
-        )
+        const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`
         const respostaDetalhes = await fetch(urlDetalhes)
         if (respostaDetalhes.ok) {
           const detalhes = await respostaDetalhes.json()
@@ -182,7 +168,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       }
 
       try {
-        const urlEleicoes = montarUrlTse(`/candidato/${cand.id}/eleicoes-anteriores`)
+        const urlEleicoes = `/api-tse/divulga/rest/v1/candidato/${cand.id}/eleicoes-anteriores`
         const respostaEleicoes = await fetch(urlEleicoes)
         if (respostaEleicoes.ok) historicoEleicoes = await respostaEleicoes.json()
       } catch (e) {
@@ -225,7 +211,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         ano: ANO,
       })
 
-      // Pausa para não estressar o servidor
+      // Pausa rápida para não travar a sua rede local
       await sleep(500)
     }
   } catch (erro) {
@@ -236,9 +222,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
 
 export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) => {
   try {
-    const urlDetalhes = montarUrlTse(
-      `/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`,
-    )
+    const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`
     const respostaDetalhes = await fetch(urlDetalhes)
     if (!respostaDetalhes.ok) throw new Error('Falha ao comunicar com o TSE')
 
@@ -283,7 +267,6 @@ export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) =
 
 export const buscarRaioXCamara = async (nomeBusca, uf) => {
   try {
-    // A Câmara dos Deputados TEM o CORS aberto, então não precisa de proxy!
     const nomeEncode = encodeURIComponent(nomeBusca)
     const res = await fetch(
       `https://dadosabertos.camara.leg.br/api/v2/deputados?nome=${nomeEncode}&siglaUf=${uf}`,
