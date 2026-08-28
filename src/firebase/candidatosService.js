@@ -14,6 +14,9 @@ import { db } from './config'
 
 const candidatosCollection = collection(db, 'candidatos')
 
+// Função auxiliar para evitar bloqueio por excesso de velocidade
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export const buscarCandidatos = async (ufFiltro = null, cargoFiltro = null) => {
   try {
     let q = candidatosCollection
@@ -101,8 +104,10 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
     if (!snapshot.empty) return
 
     const nomeCargo = CARGOS[codigoCargo]
-    const urlProxy = `/api-tse/divulga/rest/v1/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`
-    const resposta = await fetch(urlProxy)
+
+    // 🔥 MUDANÇA AQUI: Chamada DIRETA ao TSE (Ignora a AWS e usa o IP do Eleitor)
+    const urlLista = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`
+    const resposta = await fetch(urlLista)
 
     if (!resposta.ok) throw new Error(`O TSE retornou um erro na lista geral: ${resposta.status}`)
 
@@ -138,7 +143,8 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       let fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO}/${cand.id}/${uf}`
 
       try {
-        const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`
+        // 🔥 MUDANÇA AQUI: Link direto ao TSE
+        const urlDetalhes = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`
         const respostaDetalhes = await fetch(urlDetalhes)
         if (respostaDetalhes.ok) {
           const detalhes = await respostaDetalhes.json()
@@ -163,7 +169,8 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       }
 
       try {
-        const urlEleicoes = `/api-tse/divulga/rest/v1/candidato/${cand.id}/eleicoes-anteriores`
+        // 🔥 MUDANÇA AQUI: Link direto ao TSE
+        const urlEleicoes = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidato/${cand.id}/eleicoes-anteriores`
         const respostaEleicoes = await fetch(urlEleicoes)
         if (respostaEleicoes.ok) historicoEleicoes = await respostaEleicoes.json()
       } catch (e) {
@@ -205,6 +212,9 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         fotoUrl: fotoOficialUrl,
         ano: ANO,
       })
+
+      // ⏳ Pausa a cada candidato para o TSE não pensar que o eleitor é um robô
+      await sleep(800)
     }
   } catch (erro) {
     console.error('❌ Erro ao baixar dados:', erro)
@@ -214,7 +224,8 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
 
 export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) => {
   try {
-    const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`
+    // 🔥 MUDANÇA AQUI: Link direto ao TSE
+    const urlDetalhes = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`
     const respostaDetalhes = await fetch(urlDetalhes)
     if (!respostaDetalhes.ok) throw new Error('Falha ao comunicar com o TSE')
 
@@ -244,7 +255,7 @@ export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) =
       genero: genero,
       corRaca: corRaca,
       grauInstrucao: grauInstrucao,
-      vices: vicesCacados, // Sincroniza apenas com os dados oficiais do TSE
+      vices: vicesCacados,
     }
 
     const docRef = doc(db, 'candidatos', candidatoFirebaseId)
@@ -293,6 +304,7 @@ export const buscarRaioXCamara = async (nomeBusca, uf) => {
     return null
   }
 }
+
 // ====================================================
 // MÓDULO DE VOTAÇÃO (ENQUETE)
 // ====================================================
@@ -302,11 +314,9 @@ export const registrarVoto = async (candidatoId, nomeUrna, partido, fotoUrl) => 
     const votoRef = doc(db, 'enquete_presidente', candidatoId)
     const votoSnap = await getDoc(votoRef)
 
-    // Se o candidato já tem votos, soma +1 de forma segura (increment)
     if (votoSnap.exists()) {
       await updateDoc(votoRef, { totalVotos: increment(1) })
     } else {
-      // Se é o primeiro voto dele, cria o registro
       await setDoc(votoRef, {
         nomeUrna,
         partido,
@@ -335,7 +345,6 @@ export const buscarResultadosEnquete = async () => {
       totalGeral += data.totalVotos || 0
     })
 
-    // Retorna ordenado do mais votado para o menos votado
     return {
       resultados: resultados.sort((a, b) => b.totalVotos - a.totalVotos),
       totalGeral,
