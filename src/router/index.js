@@ -4,6 +4,7 @@ import CandidatosView from '../views/CandidatosView.vue'
 import AnalisesView from '../views/AnalisesView.vue'
 import AcessibilidadeView from '../views/AcessibilidadeView.vue'
 import VotacaoView from '../views/VotacaoView.vue'
+import ColaView from '../views/ColaView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -33,6 +34,12 @@ const router = createRouter({
       path: '/votacao',
       name: 'votacao',
       component: VotacaoView,
+    },
+
+    {
+      path: '/cola',
+      name: 'Cola',
+      component: ColaView,
     },
   ],
 })

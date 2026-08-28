@@ -20,8 +20,6 @@ const CARGOS = {
   6: 'Deputado Federal',
   7: 'Deputado Estadual',
   8: 'Deputado Distrital',
-  9: '1º Suplente',
-  10: '2º Suplente',
 }
 
 const carregando = ref(false)
@@ -123,19 +121,6 @@ const partidosOficiais = [
   'UP',
 ]
 
-const cargosOficiais = [
-  'Presidente',
-  'Vice-Presidente',
-  'Governador',
-  'Vice-Governador',
-  'Senador',
-  'Deputado Federal',
-  'Deputado Estadual',
-  'Deputado Distrital',
-  '1º Suplente',
-  '2º Suplente',
-]
-
 const situacoesOficiais = [
   'Aguardando julgamento',
   'Deferido',
@@ -148,6 +133,49 @@ const situacoesOficiais = [
   'Falecido',
   'Não informado',
 ]
+
+// ====================================================
+// LISTA INTELIGENTE DE CARGOS BASEADA NO ESTADO (UF) (Sem Suplentes)
+// ====================================================
+const cargosDinamicos = computed(() => {
+  if (inputUf.value === 'BR') {
+    return ['Presidente', 'Vice-Presidente']
+  } else if (inputUf.value === 'DF') {
+    return ['Governador', 'Vice-Governador', 'Senador', 'Deputado Federal', 'Deputado Distrital']
+  } else if (inputUf.value !== '') {
+    // Qualquer outro Estado
+    return ['Governador', 'Vice-Governador', 'Senador', 'Deputado Federal', 'Deputado Estadual']
+  }
+
+  // Se for "Todos os Estados", mostra tudo
+  return [
+    'Presidente',
+    'Vice-Presidente',
+    'Governador',
+    'Vice-Governador',
+    'Senador',
+    'Deputado Federal',
+    'Deputado Estadual',
+    'Deputado Distrital',
+  ]
+})
+
+// Corrige o inputCargo caso o usuário troque de UF mas já tenha algo selecionado
+const aoMudarUf = () => {
+  if (inputUf.value === 'BR') {
+    if (inputCargo.value !== 'Presidente' && inputCargo.value !== 'Vice-Presidente')
+      inputCargo.value = ''
+  } else if (inputUf.value === 'DF') {
+    if (inputCargo.value === 'Deputado Estadual') inputCargo.value = 'Deputado Distrital'
+    else if (inputCargo.value === 'Presidente' || inputCargo.value === 'Vice-Presidente')
+      inputCargo.value = ''
+  } else if (inputUf.value !== '') {
+    // Outros estados normais
+    if (inputCargo.value === 'Deputado Distrital') inputCargo.value = 'Deputado Estadual'
+    else if (inputCargo.value === 'Presidente' || inputCargo.value === 'Vice-Presidente')
+      inputCargo.value = ''
+  }
+}
 
 // ====================================================
 // FUNÇÃO DE BUSCA E FILTRAGEM
@@ -543,7 +571,7 @@ const tratarErroFoto = (e, candidato) => {
   if (!e.target.dataset.triedFix) {
     e.target.dataset.triedFix = 'true'
     const ID_ELEICAO_2026 = '20322002026'
-    e.target.src = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO_2026}/${candidato.idTse}/${candidato.uf}`
+    e.target.src = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO_2026}/${candidato.idTse}/${candidato.uf}?t=${new Date().getTime()}`
   } else {
     e.target.onerror = null
     e.target.src =
@@ -660,21 +688,23 @@ const compartilharWhatsApp = (candidato) => {
           class="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         />
 
-        <!-- FILTRO DE ESTADO (UF) -->
+        <!-- FILTRO DE ESTADO (UF) DISPARA A FUNÇÃO PARA AJUSTAR O CARGO -->
         <select
           v-model="inputUf"
+          @change="aoMudarUf"
           class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         >
           <option value="">Todos os Estados</option>
           <option v-for="u in ufsOficiais" :key="u.sigla" :value="u.sigla">{{ u.nome }}</option>
         </select>
 
+        <!-- O SELECT DE CARGO AGORA LÊ DA LISTA DINÂMICA (Sem Suplentes) -->
         <select
           v-model="inputCargo"
           class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         >
           <option value="">Todos os Cargos</option>
-          <option v-for="c in cargosOficiais" :key="c" :value="c">{{ c }}</option>
+          <option v-for="c in cargosDinamicos" :key="c" :value="c">{{ c }}</option>
         </select>
 
         <select
@@ -778,11 +808,8 @@ const compartilharWhatsApp = (candidato) => {
             class="relative mb-4 flex justify-center bg-slate-50 dark:bg-slate-800/50 py-4 rounded-xl border border-slate-100 dark:border-slate-700/50"
             :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
           >
-            <!-- referrerpolicy="no-referrer" evita o bloqueio de hotlink do TSE -->
             <img
               :src="candidato.fotoUrl"
-              referrerpolicy="no-referrer"
-              loading="lazy"
               :alt="`Foto oficial de urna do candidato ${candidato.nomeUrna}`"
               class="w-32 h-40 object-cover border border-slate-300 dark:border-slate-600 shadow-sm rounded bg-slate-200 dark:bg-slate-700"
               @error="(e) => tratarErroFoto(e, candidato)"
@@ -801,7 +828,6 @@ const compartilharWhatsApp = (candidato) => {
                   Nº {{ candidato.numero }}
                 </span>
 
-                <!-- BADGE DE ESTADO/UF VISÍVEL NO CARD -->
                 <span
                   class="inline-block bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full uppercase"
                 >
@@ -1380,9 +1406,6 @@ const compartilharWhatsApp = (candidato) => {
             >
               <img
                 :src="cand.fotoUrl"
-                referrerpolicy="no-referrer"
-                loading="lazy"
-                :alt="`Foto oficial de ${cand.nomeUrna}`"
                 class="w-24 h-32 object-cover rounded-xl shadow-md border-2 border-white dark:border-slate-700 mb-3 bg-slate-200 dark:bg-slate-800"
                 @error="
                   (e) => {

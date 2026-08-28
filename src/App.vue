@@ -122,6 +122,13 @@ onMounted(() => {
                 Candidatos
               </RouterLink>
 
+              <router-link
+                to="/cola"
+                class="hover:text-blue-500 transition-colors flex items-center gap-1"
+              >
+                📝 Cola Eleitoral
+              </router-link>
+
               <RouterLink
                 to="/votacao"
                 class="px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center gap-1.5"

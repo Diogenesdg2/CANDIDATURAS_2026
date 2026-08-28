@@ -327,3 +327,82 @@ export const buscarResultadosEnquete = async () => {
     return { resultados: [], totalGeral: 0 }
   }
 }
+
+// ====================================================
+// MÓDULO DE MANUTENÇÃO GRANULAR (Apenas para Localhost)
+// ====================================================
+export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgresso) => {
+  try {
+    // 1. Busca quem já está salvo no seu banco de dados
+    const q = query(
+      candidatosCollection,
+      where('uf', '==', uf),
+      where('codigoCargo', '==', Number(codigoCargo)),
+    )
+    const snapshot = await getDocs(q)
+
+    if (snapshot.empty) return
+
+    const listaLocal = snapshot.docs.map((doc) => ({
+      idFirebase: doc.id,
+      idTse: doc.data().idTse,
+      nomeUrna: doc.data().nomeUrna,
+    }))
+    const total = listaLocal.length
+    let atual = 0
+
+    // 2. Passa um por um atualizando só o que você pediu
+    for (const cand of listaLocal) {
+      atual++
+      if (onProgresso) onProgresso(atual, total, cand.nomeUrna)
+
+      try {
+        const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.idTse}`
+        const resposta = await fetch(urlDetalhes)
+        if (!resposta.ok) throw new Error('Falha de conexão com o TSE')
+
+        const detalhes = await resposta.json()
+        let dadosAtualizados = {}
+
+        // Monta o pacote apenas com as caixinhas que você marcou na tela!
+        if (opcoes.situacao) {
+          dadosAtualizados.situacaoCandidatura = detalhes.descricaoSituacao || 'Não informado'
+          dadosAtualizados.situacaoPartido =
+            detalhes.candidato?.situacaoCandidato || 'Não informado'
+        }
+
+        if (opcoes.bens) {
+          dadosAtualizados.totalBens = detalhes.totalDeBens || 0
+          dadosAtualizados.bens = detalhes.bens || []
+          dadosAtualizados.limiteGastos1T = detalhes.gastoCampanha1T || 0
+          dadosAtualizados.limiteGastos2T = detalhes.gastoCampanha2T || 0
+        }
+
+        if (opcoes.vicesEPessoais) {
+          dadosAtualizados.dataDeNascimento =
+            detalhes.dataDeNascimento || detalhes.dataNascimento || null
+          dadosAtualizados.vices = cacarVicesTSE(detalhes)
+        }
+
+        if (opcoes.foto) {
+          const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
+          dadosAtualizados.fotoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.idTse}/${uf}`
+        }
+
+        // Se tiver alguma coisa pra atualizar, salva no Firebase
+        if (Object.keys(dadosAtualizados).length > 0) {
+          const docRef = doc(db, 'candidatos', cand.idFirebase)
+          await updateDoc(docRef, dadosAtualizados)
+        }
+      } catch (e) {
+        console.warn(`Aviso: Falha ao fazer manutenção em ${cand.nomeUrna}`, e)
+      }
+
+      // Pausa rápida de 1 segundo para não tomar bloqueio (429) do TSE
+      await sleep(1000)
+    }
+  } catch (erro) {
+    console.error('❌ Erro na Manutenção:', erro)
+    throw erro
+  }
+}

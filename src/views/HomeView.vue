@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import {
   verificarDadosExistem,
   sincronizarDadosAutomaticamente,
+  realizarManutencaoEmLote, // Importando a nova função!
 } from '../firebase/candidatosService'
 
 const router = useRouter()
@@ -11,7 +12,6 @@ const router = useRouter()
 // 🌟 DETECTA SE ESTÁ NO LOCALHOST (DEV) OU NA AWS (PRODUÇÃO)
 const isDev = import.meta.env.DEV
 
-// 1. INICIANDO NO PADRÃO NACIONAL (BRASIL / PRESIDENTE)
 const regiaoSelecionada = ref('BR')
 const ufSelecionada = ref('BR')
 const cargoSelecionado = ref(1)
@@ -20,9 +20,18 @@ const dadosExistemNoBanco = ref(false)
 const verificando = ref(true)
 
 const importando = ref(false)
+const modoManutencao = ref(false) // Controle visual para a barra de progresso
 const progressoAtual = ref(0)
 const progressoTotal = ref(100)
 const textoStatus = ref('')
+
+// Checkboxes do Painel de Manutenção
+const opcoesManutencao = ref({
+  situacao: true, // Já vem marcado por padrão, pois é o que mais muda
+  foto: false,
+  bens: false,
+  vicesEPessoais: false,
+})
 
 const regioes = [
   { id: 'BR', nome: 'Brasil (Nacional)' },
@@ -74,7 +83,6 @@ const estadosPorRegiao = {
   ],
 }
 
-// 🌟 MUDANÇA: Cargos dinâmicos detectando o DF!
 const cargos = computed(() => {
   if (regiaoSelecionada.value === 'BR') {
     return [
@@ -82,7 +90,6 @@ const cargos = computed(() => {
       { id: 2, nome: 'Vice-Presidente' },
     ]
   } else if (ufSelecionada.value === 'DF') {
-    // Se for Distrito Federal, mostra Deputado Distrital (ID: 8)
     return [
       { id: 3, nome: 'Governador' },
       { id: 4, nome: 'Vice-Governador' },
@@ -91,7 +98,6 @@ const cargos = computed(() => {
       { id: 8, nome: 'Deputado Distrital' },
     ]
   } else {
-    // Se for os outros estados, mostra Deputado Estadual (ID: 7)
     return [
       { id: 3, nome: 'Governador' },
       { id: 4, nome: 'Vice-Governador' },
@@ -105,29 +111,16 @@ const cargos = computed(() => {
 const selecionarRegiao = (idRegiao) => {
   regiaoSelecionada.value = idRegiao
   const estados = estadosPorRegiao[idRegiao]
-  if (estados && estados.length > 0) {
-    ufSelecionada.value = estados[0].sigla
-  }
-
-  if (idRegiao === 'BR') {
-    cargoSelecionado.value = 1 // Presidente
-  } else {
-    // Ao mudar de região, reseta pro Governador para evitar conflitos (ex: Distrital pra Estadual)
-    cargoSelecionado.value = 3
-  }
+  if (estados && estados.length > 0) ufSelecionada.value = estados[0].sigla
+  if (idRegiao === 'BR') cargoSelecionado.value = 1
+  else cargoSelecionado.value = 3
   checarBanco()
 }
 
 const selecionarUf = (sigla) => {
   ufSelecionada.value = sigla
-
-  // 🌟 MUDANÇA: Inteligência ao trocar de um Estado normal pro DF e vice-versa
-  if (sigla === 'DF' && cargoSelecionado.value === 7) {
-    cargoSelecionado.value = 8 // Converte Estadual em Distrital
-  } else if (sigla !== 'DF' && cargoSelecionado.value === 8) {
-    cargoSelecionado.value = 7 // Converte Distrital em Estadual
-  }
-
+  if (sigla === 'DF' && cargoSelecionado.value === 7) cargoSelecionado.value = 8
+  else if (sigla !== 'DF' && cargoSelecionado.value === 8) cargoSelecionado.value = 7
   checarBanco()
 }
 
@@ -151,6 +144,7 @@ onMounted(() => {
 
 const iniciarImportacao = async () => {
   importando.value = true
+  modoManutencao.value = false
   try {
     await sincronizarDadosAutomaticamente(
       ufSelecionada.value,
@@ -161,19 +155,39 @@ const iniciarImportacao = async () => {
         textoStatus.value = `Baixando do TSE: ${atual} de ${total} (${nome})`
       },
     )
-
     await checarBanco()
     importando.value = false
-
-    router.push({
-      path: '/candidatos',
-      query: { uf: ufSelecionada.value, cargo: cargoSelecionado.value },
-    })
   } catch (e) {
-    alert(
-      'Erro ao importar dados. O servidor do TSE pode ter bloqueado temporariamente (Erro 429). Tente reiniciar seu roteador.',
+    alert('Erro ao importar. O servidor do TSE pode ter bloqueado temporariamente (Erro 429).')
+    importando.value = false
+  }
+}
+
+// 🌟 NOVA FUNÇÃO: DISPARA A MANUTENÇÃO COM OS CHECKBOXES
+const iniciarManutencao = async () => {
+  const marcouAlgo = Object.values(opcoesManutencao.value).some((v) => v === true)
+  if (!marcouAlgo) return alert('Selecione pelo menos uma informação para sincronizar!')
+
+  importando.value = true
+  modoManutencao.value = true
+  try {
+    await realizarManutencaoEmLote(
+      ufSelecionada.value,
+      cargoSelecionado.value,
+      opcoesManutencao.value,
+      (atual, total, nome) => {
+        progressoAtual.value = atual
+        progressoTotal.value = total
+        textoStatus.value = `Sincronizando ${nome}... (${atual}/${total})`
+      },
     )
     importando.value = false
+    modoManutencao.value = false
+    alert('Manutenção finalizada com sucesso! Seu banco de dados está atualizado.')
+  } catch (e) {
+    alert('Erro durante a manutenção. Verifique o console.')
+    importando.value = false
+    modoManutencao.value = false
   }
 }
 
@@ -196,7 +210,6 @@ const avancarParaLista = () => {
         Selecione a região, o estado e o cargo que deseja analisar as contas e candidaturas.
       </p>
 
-      <!-- AVISO DE TRANSPARÊNCIA (API TSE) -->
       <div
         class="mt-5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-xl p-4 flex items-start gap-3 shadow-sm transition-colors"
       >
@@ -219,10 +232,8 @@ const avancarParaLista = () => {
             Fonte de Dados Oficial
           </p>
           <p class="text-xs text-blue-800 dark:text-blue-200/80 mt-1 leading-relaxed">
-            Todas as informações, fotos, lista de bens e status apresentados neste explorador são
-            extraídos em tempo real e de forma automatizada do portal de dados abertos do
-            <strong class="dark:text-blue-100">TSE (Tribunal Superior Eleitoral)</strong>,
-            utilizando a API pública oficial <i>divulgacandcontas.tse.jus.br</i>.
+            Todas as informações são extraídas da API pública oficial do
+            <strong class="dark:text-blue-100">TSE (Tribunal Superior Eleitoral)</strong>.
           </p>
         </div>
       </div>
@@ -241,7 +252,7 @@ const avancarParaLista = () => {
           :class="[
             'p-3 rounded-2xl border text-sm font-semibold transition-all shadow-sm text-center',
             regiaoSelecionada === reg.id
-              ? 'bg-white dark:bg-slate-800 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 ring-2 ring-blue-600/20 dark:ring-blue-500/30'
+              ? 'bg-white dark:bg-slate-800 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 ring-2 ring-blue-600/20'
               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
           ]"
         >
@@ -263,7 +274,7 @@ const avancarParaLista = () => {
           :class="[
             'p-4 rounded-2xl border text-left transition-all shadow-sm flex items-center justify-between',
             ufSelecionada === est.sigla
-              ? 'bg-white dark:bg-slate-800 border-blue-600 dark:border-blue-500 text-blue-900 dark:text-blue-300 ring-2 ring-blue-600/20 dark:ring-blue-500/30'
+              ? 'bg-white dark:bg-slate-800 border-blue-600 dark:border-blue-500 text-blue-900 dark:text-blue-300 ring-2 ring-blue-600/20'
               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
           ]"
         >
@@ -283,7 +294,7 @@ const avancarParaLista = () => {
       </div>
     </div>
 
-    <!-- 3. QUAL CARGO DESEJA ANALISAR -->
+    <!-- 3. QUAL CARGO -->
     <div class="space-y-3">
       <h2 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
         3. Qual cargo deseja analisar?
@@ -314,47 +325,130 @@ const avancarParaLista = () => {
       </div>
 
       <div v-else>
-        <!-- SE TEM DADOS NO BANCO: BOTÕES ACESSAR E RETOMAR (SE DEV) -->
-        <div
-          v-if="dadosExistemNoBanco && !importando"
-          class="flex flex-col sm:flex-row items-center justify-between gap-4"
-        >
-          <div>
-            <span
-              class="inline-block bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-xs font-bold px-2.5 py-0.5 rounded-full mb-1"
-            >
-              Pronto para consulta
-            </span>
-            <h3 class="text-base font-bold text-slate-900 dark:text-slate-100">
-              Os dados deste cargo já estão sincronizados!
-            </h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">
-              Você pode explorar os perfis, bens e limites imediatamente.
-            </p>
+        <!-- ============================================== -->
+        <!-- ESTADO 1: DADOS JÁ EXISTEM NO BANCO -->
+        <!-- ============================================== -->
+        <div v-if="dadosExistemNoBanco && !importando">
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+            <div>
+              <span
+                class="inline-block bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-xs font-bold px-2.5 py-0.5 rounded-full mb-1"
+                >Pronto para consulta</span
+              >
+              <h3 class="text-base font-bold text-slate-900 dark:text-slate-100">
+                Os dados deste cargo já estão sincronizados!
+              </h3>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <button
+                v-if="isDev"
+                @click="iniciarImportacao"
+                class="px-5 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm rounded-xl transition-all shadow-sm border border-slate-200 dark:border-slate-700"
+                title="Procurar novos candidatos que entraram na lista"
+              >
+                ➕ Checar Novos Candidatos (continuar importação)
+              </button>
+              <button
+                @click="avancarParaLista"
+                class="px-6 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-md transition-all"
+              >
+                Acessar Candidatos →
+              </button>
+            </div>
           </div>
 
-          <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-            <!-- BOTÃO RETOMAR: Somente no ambiente do desenvolvedor -->
+          <!-- 🌟 PAINEL DE MANUTENÇÃO (SÓ APARECE NO LOCALHOST SE TIVER DADOS) -->
+          <div
+            v-if="isDev"
+            class="mt-4 p-5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 rounded-xl"
+          >
+            <div class="flex items-center gap-2 mb-3">
+              <svg
+                class="w-5 h-5 text-indigo-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                ></path>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                ></path>
+              </svg>
+              <h4 class="font-bold text-slate-800 dark:text-slate-200">
+                Painel de Manutenção Granular
+              </h4>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Escolha as informações que deseja forçar a atualização no banco de dados para os
+              candidatos selecionados acima:
+            </p>
+
+            <div class="flex flex-wrap gap-4 mb-5">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  v-model="opcoesManutencao.situacao"
+                  class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+                />
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >Situação Judicial</span
+                >
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  v-model="opcoesManutencao.foto"
+                  class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+                />
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >Fotos / Imagens</span
+                >
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  v-model="opcoesManutencao.bens"
+                  class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+                />
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >Bens & Limites</span
+                >
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  v-model="opcoesManutencao.vicesEPessoais"
+                  class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+                />
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >Vices & Pessoais</span
+                >
+              </label>
+            </div>
+
             <button
-              v-if="isDev"
-              @click="iniciarImportacao"
-              class="w-full sm:w-auto px-5 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700"
-              title="Continuar importação incompleta ou buscar novos candidatos"
+              @click="iniciarManutencao"
+              class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-sm transition-all focus:ring-4 focus:ring-indigo-300"
             >
-              🔄 Retomar Importação
-            </button>
-            <button
-              @click="avancarParaLista"
-              class="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-md transition-all"
-            >
-              Acessar Candidatos →
+              🔄 Iniciar Manutenção Lote
             </button>
           </div>
         </div>
 
-        <!-- SE NÃO TEM DADOS OU ESTÁ NO MEIO DA IMPORTAÇÃO -->
+        <!-- ============================================== -->
+        <!-- ESTADO 2: NÃO EXISTEM DADOS (OU ESTÁ NO MEIO DO PROCESSO) -->
+        <!-- ============================================== -->
         <div v-else>
-          <!-- SÓ MOSTRA SE FOR LOCALHOST (isDev === true) -->
           <div v-if="isDev">
             <div
               v-if="!importando"
@@ -363,36 +457,45 @@ const avancarParaLista = () => {
               <div>
                 <span
                   class="inline-block bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 text-xs font-bold px-2.5 py-0.5 rounded-full mb-1"
+                  >Novos dados encontrados no TSE!</span
                 >
-                  Novos dados encontrados no TSE!
-                </span>
                 <h3 class="text-base font-bold text-slate-900 dark:text-slate-100">
                   Dados ainda não salvos no seu painel local.
                 </h3>
                 <p class="text-xs text-slate-500 dark:text-slate-400">
-                  Ao clicar, o sistema fará a importação oficial do TSE em tempo real.
+                  Ao clicar, o sistema fará a importação oficial em tempo real.
                 </p>
               </div>
               <button
                 @click="iniciarImportacao"
-                class="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                class="px-6 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-md transition-all"
               >
                 Importar do TSE
               </button>
             </div>
 
-            <!-- BARRA DE PROGRESSO (Aparece tanto para nova importação quanto ao retomar) -->
+            <!-- BARRA DE PROGRESSO COMUM A IMPORTAÇÃO E MANUTENÇÃO -->
             <div v-else class="space-y-3 py-2">
               <div
                 class="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300"
               >
                 <span
-                  class="animate-pulse text-blue-600 dark:text-blue-400 flex items-center gap-2"
+                  :class="
+                    modoManutencao
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : 'text-blue-600 dark:text-blue-400'
+                  "
+                  class="animate-pulse flex items-center gap-2"
                 >
                   <span
-                    class="w-2.5 h-2.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-ping"
+                    :class="
+                      modoManutencao
+                        ? 'bg-indigo-600 dark:bg-indigo-400'
+                        : 'bg-blue-600 dark:bg-blue-400'
+                    "
+                    class="w-2.5 h-2.5 rounded-full animate-ping"
                   ></span>
-                  Baixando do TSE...
+                  {{ modoManutencao ? 'Realizando Manutenção Granular...' : 'Baixando do TSE...' }}
                 </span>
                 <span>{{ Math.round((progressoAtual / progressoTotal) * 100) || 0 }}%</span>
               </div>
@@ -401,7 +504,12 @@ const avancarParaLista = () => {
                 class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden border border-slate-200 dark:border-slate-700"
               >
                 <div
-                  class="bg-blue-600 dark:bg-blue-500 h-full transition-all duration-300"
+                  :class="
+                    modoManutencao
+                      ? 'bg-indigo-600 dark:bg-indigo-500'
+                      : 'bg-blue-600 dark:bg-blue-500'
+                  "
+                  class="h-full transition-all duration-300"
                   :style="{ width: `${(progressoAtual / progressoTotal) * 100}%` }"
                 ></div>
               </div>
@@ -412,18 +520,13 @@ const avancarParaLista = () => {
             </div>
           </div>
 
-          <!-- SE FOR PRODUÇÃO (NA AWS) E NÃO TIVER DADOS AINDA -->
           <div v-else class="text-center py-4">
             <span
               class="inline-block bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700"
+              >⏳ Aguardando Importação</span
             >
-              ⏳ Aguardando Importação
-            </span>
             <p class="text-sm text-slate-500 dark:text-slate-400 mt-3 font-medium">
               O administrador do painel ainda não sincronizou os dados deste estado.
-            </p>
-            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
-              Tente novamente mais tarde.
             </p>
           </div>
         </div>
