@@ -126,7 +126,7 @@ onMounted(() => {
                 to="/cola"
                 class="hover:text-blue-500 transition-colors flex items-center gap-1"
               >
-                📝 Cola Eleitoral
+                Cola Eleitoral
               </router-link>
 
               <RouterLink
@@ -139,7 +139,7 @@ onMounted(() => {
                     : 'text-purple-300 hover:bg-slate-800/50 hover:text-purple-200',
                 ]"
               >
-                🗳️ Enquete
+                Enquete
               </RouterLink>
 
               <RouterLink
