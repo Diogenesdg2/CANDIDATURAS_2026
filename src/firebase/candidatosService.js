@@ -13,7 +13,6 @@ import {
 import { db } from './config'
 
 const candidatosCollection = collection(db, 'candidatos')
-
 const ID_ELEICAO = '20322002026'
 const ANO = 2026
 const CARGOS = {
@@ -29,46 +28,8 @@ const CARGOS = {
   10: '2º Suplente',
 }
 
+// Pausa ampliada para 1.5s: Evita que o TSE bloqueie o IP da sua casa!
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
-// =========================================================================
-// 🛡️ FETCH INTELIGENTE (Detecta Localhost vs AWS)
-// =========================================================================
-const fetchResiliente = async (caminhoTse) => {
-  const urlBaseOficial = 'https://divulgacandcontas.tse.jus.br/divulga/rest/v1'
-
-  // 1. SE ESTIVER NO LOCALHOST (Vite)
-  if (import.meta.env.DEV) {
-    // Usa o proxy local perfeito que você já tinha configurado no vite.config.js
-    const urlLocal = `/api-tse/divulga/rest/v1${caminhoTse}`
-    const resposta = await fetch(urlLocal)
-    if (resposta.ok) return await resposta.json()
-    throw new Error('Falha no proxy local do Vite.')
-  }
-
-  // 2. SE ESTIVER NA AWS (Produção)
-  // Tenta as rotas que driblam o Firewall do Governo
-  const tentativasNaNuvem = [
-    `/api-tse/divulga/rest/v1${caminhoTse}`, // Tenta primeiro a regra de Rewrite da própria AWS
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(urlBaseOficial + caminhoTse)}`, // Proxy fallback 1
-    `https://corsproxy.io/?${encodeURIComponent(urlBaseOficial + caminhoTse)}`, // Proxy fallback 2
-  ]
-
-  for (const url of tentativasNaNuvem) {
-    try {
-      const resposta = await fetch(url)
-      if (resposta.ok) {
-        return await resposta.json()
-      }
-    } catch (e) {
-      console.warn(`AWS: Rota bloqueada (${url}). Pulando para o proxy reserva...`)
-    }
-  }
-
-  throw new Error('A AWS não conseguiu passar pelo Firewall do TSE neste momento.')
-}
-
-// ====================================================
 
 export const buscarCandidatos = async (ufFiltro = null, cargoFiltro = null) => {
   try {
@@ -139,11 +100,14 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
 
     const nomeCargo = CARGOS[codigoCargo]
 
-    // Usa a nova função blindada
-    const dadosLista = await fetchResiliente(
-      `/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`,
-    )
-    const listaCandidatos = dadosLista.candidatos || []
+    // Apenas a rota do Localhost (Vite)
+    const urlProxy = `/api-tse/divulga/rest/v1/candidatura/listar/${ANO}/${uf}/${ID_ELEICAO}/${codigoCargo}/candidatos`
+    const resposta = await fetch(urlProxy)
+
+    if (!resposta.ok) throw new Error(`O TSE retornou um erro na lista geral: ${resposta.status}`)
+
+    const dados = await resposta.json()
+    const listaCandidatos = dados.candidatos || []
     const totalCandidatos = listaCandidatos.length
 
     if (totalCandidatos === 0) {
@@ -171,33 +135,36 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       let grauInstrucao = 'Não informado'
       let listaVices = []
 
-      // Foto é servida diretamente
       let fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO}/${cand.id}/${uf}`
 
       try {
-        const detalhes = await fetchResiliente(
-          `/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`,
-        )
-        totalBensDeclarados = detalhes.totalDeBens || 0
-        limiteGastos1T = detalhes.gastoCampanha1T || 0
-        limiteGastos2T = detalhes.gastoCampanha2T || 0
-        listaBens = detalhes.bens || []
-        situacaoCand = detalhes.descricaoSituacao || 'Não informado'
-        situacaoPartido = detalhes.candidato?.situacaoCandidato || 'Não informado'
-        dataNascimento = detalhes.dataDeNascimento || detalhes.dataNascimento || null
-        genero = detalhes.descricaoSexo || 'Não informado'
-        corRaca = detalhes.descricaoCorRaca || 'Não informado'
-        grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
-        listaVices = cacarVicesTSE(detalhes)
+        const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`
+        const respostaDetalhes = await fetch(urlDetalhes)
+        if (respostaDetalhes.ok) {
+          const detalhes = await respostaDetalhes.json()
+          totalBensDeclarados = detalhes.totalDeBens || 0
+          limiteGastos1T = detalhes.gastoCampanha1T || 0
+          limiteGastos2T = detalhes.gastoCampanha2T || 0
+          listaBens = detalhes.bens || []
+          situacaoCand = detalhes.descricaoSituacao || 'Não informado'
+          situacaoPartido = detalhes.candidato?.situacaoCandidato || 'Não informado'
+          dataNascimento = detalhes.dataDeNascimento || detalhes.dataNascimento || null
+          genero = detalhes.descricaoSexo || 'Não informado'
+          corRaca = detalhes.descricaoCorRaca || 'Não informado'
+          grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
 
-        const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
-        fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
+          listaVices = cacarVicesTSE(detalhes)
+          const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
+          fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
+        }
       } catch (e) {
         console.warn(`Aviso: Detalhes indisponíveis`)
       }
 
       try {
-        historicoEleicoes = await fetchResiliente(`/candidato/${cand.id}/eleicoes-anteriores`)
+        const urlEleicoes = `/api-tse/divulga/rest/v1/candidato/${cand.id}/eleicoes-anteriores`
+        const respostaEleicoes = await fetch(urlEleicoes)
+        if (respostaEleicoes.ok) historicoEleicoes = await respostaEleicoes.json()
       } catch (e) {
         historicoEleicoes = [
           {
@@ -238,8 +205,8 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         ano: ANO,
       })
 
-      // Mantém a pausa de segurança!
-      await sleep(800)
+      // Pausa longa (1.5s) para o TSE não te dar o erro 429 de novo!
+      await sleep(1500)
     }
   } catch (erro) {
     console.error('❌ Erro ao baixar dados:', erro)
@@ -249,9 +216,11 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
 
 export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) => {
   try {
-    const detalhes = await fetchResiliente(
-      `/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`,
-    )
+    const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`
+    const respostaDetalhes = await fetch(urlDetalhes)
+    if (!respostaDetalhes.ok) throw new Error('Falha ao comunicar com o TSE')
+
+    const detalhes = await respostaDetalhes.json()
 
     const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
     const novaFotoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${idTse}/${uf}`
@@ -317,10 +286,6 @@ export const buscarRaioXCamara = async (nomeBusca, uf) => {
     return null
   }
 }
-
-// ====================================================
-// MÓDULO DE VOTAÇÃO (ENQUETE)
-// ====================================================
 
 export const registrarVoto = async (candidatoId, nomeUrna, partido, fotoUrl) => {
   try {
