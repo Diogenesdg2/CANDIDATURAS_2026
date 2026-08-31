@@ -454,3 +454,30 @@ export const auditarERemoverDuplicatas = async (uf, codigoCargo) => {
     throw erro
   }
 }
+// ====================================================
+// 🔒 CONTROLE DE MANUTENÇÃO GLOBAL (KILL SWITCH)
+// ====================================================
+export const getStatusManutencao = async () => {
+  try {
+    const docRef = doc(db, 'configuracoes', 'geral')
+    const docSnap = await getDoc(docRef)
+    if (docSnap.exists()) {
+      return docSnap.data().emManutencao || false
+    }
+    return false
+  } catch (e) {
+    console.error('Erro ao ler status de manutenção', e)
+    return false
+  }
+}
+
+export const setStatusManutencao = async (status) => {
+  try {
+    const docRef = doc(db, 'configuracoes', 'geral')
+    await setDoc(docRef, { emManutencao: status }, { merge: true })
+    return true
+  } catch (e) {
+    console.error('Erro ao alterar status de manutenção', e)
+    return false
+  }
+}
