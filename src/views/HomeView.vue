@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router'
 import {
   verificarDadosExistem,
   sincronizarDadosAutomaticamente,
-  realizarManutencaoEmLote, // Importando a nova função!
+  realizarManutencaoEmLote,
+  auditarERemoverDuplicatas,
 } from '../firebase/candidatosService'
 
 const router = useRouter()
@@ -20,14 +21,14 @@ const dadosExistemNoBanco = ref(false)
 const verificando = ref(true)
 
 const importando = ref(false)
-const modoManutencao = ref(false) // Controle visual para a barra de progresso
+const modoManutencao = ref(false)
 const progressoAtual = ref(0)
 const progressoTotal = ref(100)
 const textoStatus = ref('')
 
 // Checkboxes do Painel de Manutenção
 const opcoesManutencao = ref({
-  situacao: true, // Já vem marcado por padrão, pois é o que mais muda
+  situacao: true,
   foto: false,
   bens: false,
   vicesEPessoais: false,
@@ -163,7 +164,6 @@ const iniciarImportacao = async () => {
   }
 }
 
-// 🌟 NOVA FUNÇÃO: DISPARA A MANUTENÇÃO COM OS CHECKBOXES
 const iniciarManutencao = async () => {
   const marcouAlgo = Object.values(opcoesManutencao.value).some((v) => v === true)
   if (!marcouAlgo) return alert('Selecione pelo menos uma informação para sincronizar!')
@@ -188,6 +188,37 @@ const iniciarManutencao = async () => {
     alert('Erro durante a manutenção. Verifique o console.')
     importando.value = false
     modoManutencao.value = false
+  }
+}
+
+// 🌟 FUNÇÃO DE AUDITORIA DE DUPLICATAS
+const executarAuditoriaDuplicatas = async () => {
+  if (
+    !confirm(
+      `Deseja varrer o banco de dados para o cargo selecionado em ${ufSelecionada.value} em busca de candidatos duplicados?`,
+    )
+  )
+    return
+
+  try {
+    verificando.value = true
+    const resultado = await auditarERemoverDuplicatas(ufSelecionada.value, cargoSelecionado.value)
+    verificando.value = false
+
+    if (resultado.removidos > 0) {
+      alert(
+        `🔍 Auditoria concluída!\n\nForam encontrados ${resultado.totalEncontrados} registros analisados e ${resultado.removidos} duplicata(s) foram removidas com sucesso do Firebase.`,
+      )
+    } else {
+      alert(
+        `🔍 Auditoria concluída!\n\nForam analisados ${resultado.totalEncontrados} registros e NENHUMA duplicata foi encontrada. Sua base está limpa!`,
+      )
+    }
+
+    await checarBanco()
+  } catch (e) {
+    verificando.value = false
+    alert('Erro ao executar a auditoria. Verifique o console.')
   }
 }
 
@@ -347,7 +378,7 @@ const avancarParaLista = () => {
                 class="px-5 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm rounded-xl transition-all shadow-sm border border-slate-200 dark:border-slate-700"
                 title="Procurar novos candidatos que entraram na lista"
               >
-                ➕ Checar Novos Candidatos (continuar importação)
+                ➕ Importar Novos
               </button>
               <button
                 @click="avancarParaLista"
@@ -385,15 +416,17 @@ const avancarParaLista = () => {
                 ></path>
               </svg>
               <h4 class="font-bold text-slate-800 dark:text-slate-200">
-                Painel de Manutenção Granular
+                Painel de Manutenção Granular & Auditoria
               </h4>
             </div>
             <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Escolha as informações que deseja forçar a atualização no banco de dados para os
-              candidatos selecionados acima:
+              Escolha as opções de manutenção ou utilize o botão de auditoria para limpar sujeiras
+              de importação do TSE.
             </p>
 
-            <div class="flex flex-wrap gap-4 mb-5">
+            <div
+              class="flex flex-wrap gap-4 mb-5 border-b border-slate-200 dark:border-slate-700/50 pb-4"
+            >
               <label class="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -436,12 +469,21 @@ const avancarParaLista = () => {
               </label>
             </div>
 
-            <button
-              @click="iniciarManutencao"
-              class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-sm transition-all focus:ring-4 focus:ring-indigo-300"
-            >
-              🔄 Iniciar Manutenção Lote
-            </button>
+            <div class="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                @click="iniciarManutencao"
+                class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-sm transition-all focus:ring-4 focus:ring-indigo-300"
+              >
+                🔄 Iniciar Manutenção Lote
+              </button>
+
+              <button
+                @click="executarAuditoriaDuplicatas"
+                class="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl shadow-sm transition-all focus:ring-4 focus:ring-amber-300 flex items-center gap-2"
+              >
+                🧹 Auditar e Remover Duplicatas
+              </button>
+            </div>
           </div>
         </div>
 

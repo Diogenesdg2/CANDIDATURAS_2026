@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   buscarCandidatos,
@@ -20,6 +20,8 @@ const CARGOS = {
   6: 'Deputado Federal',
   7: 'Deputado Estadual',
   8: 'Deputado Distrital',
+  9: '1º Suplente',
+  10: '2º Suplente',
 }
 
 const carregando = ref(false)
@@ -47,6 +49,9 @@ const candidatos = ref([])
 const atualizandoId = ref(null)
 const atualizandoTodos = ref(false)
 const progressoGlobal = ref({ atual: 0, total: 0 })
+
+// 🌟 CONTROLE DE PAGINAÇÃO VIRTUAL
+const limiteExibicao = ref(30) // Desenha só 30 na tela para não travar o navegador!
 
 const modalAberto = ref(false)
 const tipoModal = ref('')
@@ -121,6 +126,19 @@ const partidosOficiais = [
   'UP',
 ]
 
+const cargosOficiais = [
+  'Presidente',
+  'Vice-Presidente',
+  'Governador',
+  'Vice-Governador',
+  'Senador',
+  'Deputado Federal',
+  'Deputado Estadual',
+  'Deputado Distrital',
+  '1º Suplente',
+  '2º Suplente',
+]
+
 const situacoesOficiais = [
   'Aguardando julgamento',
   'Deferido',
@@ -135,55 +153,20 @@ const situacoesOficiais = [
 ]
 
 // ====================================================
-// LISTA INTELIGENTE DE CARGOS BASEADA NO ESTADO (UF) (Sem Suplentes)
-// ====================================================
-const cargosDinamicos = computed(() => {
-  if (inputUf.value === 'BR') {
-    return ['Presidente', 'Vice-Presidente']
-  } else if (inputUf.value === 'DF') {
-    return ['Governador', 'Vice-Governador', 'Senador', 'Deputado Federal', 'Deputado Distrital']
-  } else if (inputUf.value !== '') {
-    // Qualquer outro Estado
-    return ['Governador', 'Vice-Governador', 'Senador', 'Deputado Federal', 'Deputado Estadual']
-  }
-
-  // Se for "Todos os Estados", mostra tudo
-  return [
-    'Presidente',
-    'Vice-Presidente',
-    'Governador',
-    'Vice-Governador',
-    'Senador',
-    'Deputado Federal',
-    'Deputado Estadual',
-    'Deputado Distrital',
-  ]
-})
-
-// Corrige o inputCargo caso o usuário troque de UF mas já tenha algo selecionado
-const aoMudarUf = () => {
-  if (inputUf.value === 'BR') {
-    if (inputCargo.value !== 'Presidente' && inputCargo.value !== 'Vice-Presidente')
-      inputCargo.value = ''
-  } else if (inputUf.value === 'DF') {
-    if (inputCargo.value === 'Deputado Estadual') inputCargo.value = 'Deputado Distrital'
-    else if (inputCargo.value === 'Presidente' || inputCargo.value === 'Vice-Presidente')
-      inputCargo.value = ''
-  } else if (inputUf.value !== '') {
-    // Outros estados normais
-    if (inputCargo.value === 'Deputado Distrital') inputCargo.value = 'Deputado Estadual'
-    else if (inputCargo.value === 'Presidente' || inputCargo.value === 'Vice-Presidente')
-      inputCargo.value = ''
-  }
-}
-
-// ====================================================
 // FUNÇÃO DE BUSCA E FILTRAGEM
 // ====================================================
 const aplicarFiltros = async () => {
-  if (candidatos.value.length === 0) {
+  // Se mudou o UF ou Cargo, zera a lista para baixar a nova
+  const mudouFiltroPesado =
+    filtroUf.value !== inputUf.value || filtroCargo.value !== inputCargo.value
+
+  if (candidatos.value.length === 0 || mudouFiltroPesado) {
     carregando.value = true
-    candidatos.value = await buscarCandidatos()
+    // Aqui no futuro poderíamos usar cache local, mas a paginação visual já resolve 90% da lentidão
+    candidatos.value = await buscarCandidatos(
+      inputUf.value,
+      Object.keys(CARGOS).find((key) => CARGOS[key] === inputCargo.value),
+    )
     carregando.value = false
   }
 
@@ -193,6 +176,7 @@ const aplicarFiltros = async () => {
   filtroPartido.value = inputPartido.value
   filtroSituacao.value = inputSituacao.value
 
+  limiteExibicao.value = 30 // Zera a paginação ao filtrar
   buscaRealizada.value = true
 }
 
@@ -209,6 +193,7 @@ const limparFiltros = () => {
   filtroPartido.value = ''
   filtroSituacao.value = ''
 
+  candidatos.value = [] // Limpa a memória também
   buscaRealizada.value = false
 }
 
@@ -234,6 +219,15 @@ const candidatosFiltrados = computed(() => {
     return bateNome && bateUf && bateCargo && batePartido && bateSituacao
   })
 })
+
+// 🌟 ARRAY QUE O VUE REALMENTE DESENHA NA TELA (MUITO MAIS RÁPIDO)
+const candidatosPaginados = computed(() => {
+  return candidatosFiltrados.value.slice(0, limiteExibicao.value)
+})
+
+const carregarMais = () => {
+  limiteExibicao.value += 30
+}
 
 const tituloPagina = computed(() => {
   if (filtroUf.value || filtroCargo.value) {
@@ -688,23 +682,21 @@ const compartilharWhatsApp = (candidato) => {
           class="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         />
 
-        <!-- FILTRO DE ESTADO (UF) DISPARA A FUNÇÃO PARA AJUSTAR O CARGO -->
+        <!-- FILTRO DE ESTADO (UF) -->
         <select
           v-model="inputUf"
-          @change="aoMudarUf"
           class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         >
           <option value="">Todos os Estados</option>
           <option v-for="u in ufsOficiais" :key="u.sigla" :value="u.sigla">{{ u.nome }}</option>
         </select>
 
-        <!-- O SELECT DE CARGO AGORA LÊ DA LISTA DINÂMICA (Sem Suplentes) -->
         <select
           v-model="inputCargo"
           class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
         >
           <option value="">Todos os Cargos</option>
-          <option v-for="c in cargosDinamicos" :key="c" :value="c">{{ c }}</option>
+          <option v-for="c in cargosOficiais" :key="c" :value="c">{{ c }}</option>
         </select>
 
         <select
@@ -791,14 +783,14 @@ const compartilharWhatsApp = (candidato) => {
       </p>
     </div>
 
-    <!-- GRID DE CANDIDATOS -->
+    <!-- GRID DE CANDIDATOS (AGORA UTILIZANDO A PAGINAÇÃO VISUAL) -->
     <section
-      v-else-if="candidatosFiltrados.length > 0"
+      v-else-if="candidatosPaginados.length > 0"
       class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
       aria-label="Lista de Candidatos"
     >
       <article
-        v-for="candidato in candidatosFiltrados"
+        v-for="candidato in candidatosPaginados"
         :key="candidato.id"
         class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-md dark:hover:shadow-slate-800/50 transition-all border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col justify-between focus-within:ring-2 focus-within:ring-blue-400"
         :class="{ 'ring-4 ring-indigo-500 shadow-lg': isSelecionadoParaComparar(candidato) }"
@@ -1080,9 +1072,32 @@ const compartilharWhatsApp = (candidato) => {
       </article>
     </section>
 
-    <!-- CASO NÃO ENCONTRE NADA -->
+    <!-- 🌟 BOTÃO DE CARREGAR MAIS (PAGINAÇÃO VIRTUAL) -->
+    <div v-if="candidatosFiltrados.length > limiteExibicao" class="flex justify-center mt-10">
+      <button
+        @click="carregarMais"
+        class="px-8 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl shadow-sm transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-2"
+      >
+        <span
+          >Mostrar mais candidatos ({{
+            candidatosFiltrados.length - limiteExibicao
+          }}
+          restantes)</span
+        >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 9l-7 7-7-7"
+          ></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- CASO O USUÁRIO REALIZE UMA BUSCA E NÃO ENCONTRE NADA -->
     <div
-      v-else-if="buscaRealizada"
+      v-else-if="buscaRealizada && candidatosFiltrados.length === 0"
       class="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors shadow-sm"
       aria-live="polite"
     >
@@ -1128,7 +1143,7 @@ const compartilharWhatsApp = (candidato) => {
     </div>
   </main>
 
-  <!-- MODAL DE BENS -->
+  <!-- MODAL DE BENS COM CASAS DECIMAIS E DARK MODE -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
@@ -1352,7 +1367,7 @@ const compartilharWhatsApp = (candidato) => {
     </div>
   </div>
 
-  <!-- MODAL DE COMPARAÇÃO VS -->
+  <!-- MODAL DE COMPARAÇÃO "MANO A MANO" COM DARK MODE -->
   <div
     v-if="modalComparacaoAberto"
     class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
@@ -1406,6 +1421,9 @@ const compartilharWhatsApp = (candidato) => {
             >
               <img
                 :src="cand.fotoUrl"
+                referrerpolicy="no-referrer"
+                loading="lazy"
+                :alt="`Foto oficial de ${cand.nomeUrna}`"
                 class="w-24 h-32 object-cover rounded-xl shadow-md border-2 border-white dark:border-slate-700 mb-3 bg-slate-200 dark:bg-slate-800"
                 @error="
                   (e) => {

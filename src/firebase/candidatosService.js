@@ -9,6 +9,7 @@ import {
   setDoc,
   getDoc,
   increment,
+  deleteDoc,
 } from 'firebase/firestore'
 import { db } from './config'
 
@@ -403,6 +404,53 @@ export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgre
     }
   } catch (erro) {
     console.error('❌ Erro na Manutenção:', erro)
+    throw erro
+  }
+}
+// ====================================================
+// 🔍 AUDITORIA E REMOÇÃO DE DUPLICATAS
+// ====================================================
+export const auditarERemoverDuplicatas = async (uf, codigoCargo) => {
+  try {
+    const q = query(
+      candidatosCollection,
+      where('uf', '==', uf),
+      where('codigoCargo', '==', Number(codigoCargo)),
+    )
+    const snapshot = await getDocs(q)
+
+    if (snapshot.empty) {
+      return { totalEncontrados: 0, removidos: 0 }
+    }
+
+    const mapIdsTse = new Map()
+    let duplicadosParaRemover = []
+
+    snapshot.docs.forEach((docSnap) => {
+      const dados = docSnap.data()
+      const idTse = String(dados.idTse)
+
+      if (mapIdsTse.has(idTse)) {
+        // Já existe um registro com esse ID do TSE! Este é a duplicata.
+        duplicadosParaRemover.push(docSnap.id)
+      } else {
+        // Primeiro registro encontrado, guarda a referência
+        mapIdsTse.set(idTse, docSnap.id)
+      }
+    })
+
+    // Apaga as duplicatas encontradas do Firebase
+    for (const idFirebase of duplicadosParaRemover) {
+      const docRef = doc(db, 'candidatos', idFirebase)
+      await deleteDoc(docRef)
+    }
+
+    return {
+      totalEncontrados: snapshot.docs.length,
+      removidos: duplicadosParaRemover.length,
+    }
+  } catch (erro) {
+    console.error('❌ Erro na auditoria de duplicatas:', erro)
     throw erro
   }
 }
