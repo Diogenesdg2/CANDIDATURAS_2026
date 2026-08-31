@@ -1,15 +1,24 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   buscarCandidatos,
   atualizarStatusCandidato,
   buscarRaioXCamara,
+  getStatusManutencao,
 } from '../firebase/candidatosService'
 
 const route = useRoute()
+const router = useRouter()
 const ufUrl = route.query.uf || ''
 const cargoUrl = route.query.cargo || ''
+
+// 🌟 DETECTA SE ESTÁ NO LOCALHOST (DEV) OU NA AWS (PRODUÇÃO)
+const isDev = import.meta.env.DEV
+
+// 🔒 VARIÁVEIS DA CHAVE MESTRA
+const emManutencao = ref(false)
+const carregandoConfig = ref(true)
 
 const CARGOS = {
   1: 'Presidente',
@@ -51,7 +60,7 @@ const atualizandoTodos = ref(false)
 const progressoGlobal = ref({ atual: 0, total: 0 })
 
 // 🌟 CONTROLE DE PAGINAÇÃO VIRTUAL
-const limiteExibicao = ref(30) // Desenha só 30 na tela para não travar o navegador!
+const limiteExibicao = ref(30)
 
 const modalAberto = ref(false)
 const tipoModal = ref('')
@@ -152,17 +161,12 @@ const situacoesOficiais = [
   'Não informado',
 ]
 
-// ====================================================
-// FUNÇÃO DE BUSCA E FILTRAGEM
-// ====================================================
 const aplicarFiltros = async () => {
-  // Se mudou o UF ou Cargo, zera a lista para baixar a nova
   const mudouFiltroPesado =
     filtroUf.value !== inputUf.value || filtroCargo.value !== inputCargo.value
 
   if (candidatos.value.length === 0 || mudouFiltroPesado) {
     carregando.value = true
-    // Aqui no futuro poderíamos usar cache local, mas a paginação visual já resolve 90% da lentidão
     candidatos.value = await buscarCandidatos(
       inputUf.value,
       Object.keys(CARGOS).find((key) => CARGOS[key] === inputCargo.value),
@@ -176,7 +180,7 @@ const aplicarFiltros = async () => {
   filtroPartido.value = inputPartido.value
   filtroSituacao.value = inputSituacao.value
 
-  limiteExibicao.value = 30 // Zera a paginação ao filtrar
+  limiteExibicao.value = 30
   buscaRealizada.value = true
 }
 
@@ -193,7 +197,7 @@ const limparFiltros = () => {
   filtroPartido.value = ''
   filtroSituacao.value = ''
 
-  candidatos.value = [] // Limpa a memória também
+  candidatos.value = []
   buscaRealizada.value = false
 }
 
@@ -220,7 +224,6 @@ const candidatosFiltrados = computed(() => {
   })
 })
 
-// 🌟 ARRAY QUE O VUE REALMENTE DESENHA NA TELA (MUITO MAIS RÁPIDO)
 const candidatosPaginados = computed(() => {
   return candidatosFiltrados.value.slice(0, limiteExibicao.value)
 })
@@ -242,7 +245,18 @@ const tituloPagina = computed(() => {
   return 'Explorador de Candidatos'
 })
 
+// 🚀 BLOQUEIO INTELIGENTE AO ABRIR A PÁGINA
 onMounted(async () => {
+  carregandoConfig.value = true
+  emManutencao.value = await getStatusManutencao()
+  carregandoConfig.value = false
+
+  // Se o site está em manutenção E não é o desenvolvedor local, para a execução aqui!
+  if (emManutencao.value && !isDev) {
+    return
+  }
+
+  // Se passou no bloqueio, carrega normal
   if (ufUrl || cargoUrl) {
     await aplicarFiltros()
   }
@@ -603,53 +617,220 @@ const compartilharWhatsApp = (candidato) => {
 </script>
 
 <template>
-  <main class="space-y-6 relative pb-20 transition-colors duration-300">
-    <header class="flex flex-col gap-5">
-      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white" tabindex="0">
-            {{ tituloPagina }}
-          </h1>
-          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1" aria-live="polite">
-            <span v-if="buscaRealizada" class="font-semibold text-blue-600 dark:text-blue-400"
-              >{{ candidatosFiltrados.length }} candidatos encontrados</span
+  <div class="space-y-8 max-w-5xl mx-auto pb-12 transition-colors duration-300">
+    <!-- TELA DE LOADING INICIAL -->
+    <div v-if="carregandoConfig" class="flex flex-col items-center justify-center py-32 space-y-4">
+      <div
+        class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"
+      ></div>
+      <p class="text-slate-500 font-bold tracking-widest uppercase text-sm">
+        Verificando Servidores...
+      </p>
+    </div>
+
+    <!-- 🛑 TELA DE MANUTENÇÃO (AWS) -->
+    <div
+      v-else-if="emManutencao && !isDev"
+      class="flex flex-col items-center justify-center py-20 px-4 text-center"
+    >
+      <div
+        class="w-24 h-24 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mb-6 border-4 border-amber-200 dark:border-amber-800"
+      >
+        <svg
+          class="w-12 h-12 text-amber-600 dark:text-amber-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          ></path>
+        </svg>
+      </div>
+      <h1
+        class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-4"
+      >
+        Página Temporariamente Indisponível
+      </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 max-w-xl mx-auto leading-relaxed">
+        Estamos realizando a sincronização de dados eleitorais e atualizando nossos servidores para
+        proteger a cota diária de leitura do sistema.
+      </p>
+      <div
+        class="mt-8 bg-slate-100 dark:bg-slate-800 px-6 py-3 rounded-full text-slate-500 dark:text-slate-400 font-bold text-sm tracking-widest animate-pulse"
+      >
+        Por favor, volte em alguns minutos.
+      </div>
+      <button
+        @click="$router.push('/')"
+        class="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all"
+      >
+        Retornar ao Início
+      </button>
+    </div>
+
+    <!-- ✅ TELA NORMAL DO APLICATIVO -->
+    <main v-else class="space-y-6 relative transition-colors duration-300">
+      <div
+        v-if="isDev"
+        class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl mb-4 font-bold flex items-center gap-2"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          ></path>
+        </svg>
+        Aviso de Dev: A Chave de Manutenção está LIGADA. Apenas você está vendo esta tela.
+      </div>
+
+      <header class="flex flex-col gap-5">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white" tabindex="0">
+              {{ tituloPagina }}
+            </h1>
+            <p class="text-slate-500 dark:text-slate-400 text-sm mt-1" aria-live="polite">
+              <span v-if="buscaRealizada" class="font-semibold text-blue-600 dark:text-blue-400"
+                >{{ candidatosFiltrados.length }} candidatos encontrados</span
+              >
+              <span v-else>Faça uma pesquisa para listar os registros.</span>
+            </p>
+          </div>
+
+          <button
+            v-if="buscaRealizada && candidatosFiltrados.length > 0"
+            @click="atualizarTodosStatus"
+            :disabled="atualizandoTodos"
+            class="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 focus:ring-4 focus:ring-slate-300 dark:focus:ring-slate-600 disabled:bg-slate-400 dark:disabled:bg-slate-800 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2 self-start md:self-auto"
+          >
+            <svg
+              v-if="atualizandoTodos"
+              aria-hidden="true"
+              class="animate-spin h-4 w-4 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
             >
-            <span v-else>Faça uma pesquisa para listar os registros.</span>
-          </p>
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <svg
+              v-else
+              aria-hidden="true"
+              class="h-4 w-4 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              ></path>
+            </svg>
+            {{
+              atualizandoTodos
+                ? `Sincronizando ${progressoGlobal.atual}/${progressoGlobal.total}...`
+                : 'Sincronizar Tela com TSE'
+            }}
+          </button>
         </div>
 
-        <button
-          v-if="buscaRealizada && candidatosFiltrados.length > 0"
-          @click="atualizarTodosStatus"
-          :disabled="atualizandoTodos"
-          class="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 focus:ring-4 focus:ring-slate-300 dark:focus:ring-slate-600 disabled:bg-slate-400 dark:disabled:bg-slate-800 text-white font-bold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2 self-start md:self-auto"
+        <!-- BARRA DE FILTROS COM SELEÇÃO DE ESTADO (UF) -->
+        <div
+          class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row gap-3 items-stretch xl:items-center"
+        >
+          <input
+            v-model="inputBusca"
+            @keyup.enter="aplicarFiltros"
+            type="search"
+            placeholder="Buscar por nome..."
+            class="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          />
+
+          <!-- FILTRO DE ESTADO (UF) -->
+          <select
+            v-model="inputUf"
+            class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          >
+            <option value="">Todos os Estados</option>
+            <option v-for="u in ufsOficiais" :key="u.sigla" :value="u.sigla">{{ u.nome }}</option>
+          </select>
+
+          <select
+            v-model="inputCargo"
+            class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          >
+            <option value="">Todos os Cargos</option>
+            <option v-for="c in cargosOficiais" :key="c" :value="c">{{ c }}</option>
+          </select>
+
+          <select
+            v-model="inputPartido"
+            class="w-full xl:w-36 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          >
+            <option value="">Partidos (Todos)</option>
+            <option v-for="p in partidosOficiais" :key="p" :value="p">{{ p }}</option>
+          </select>
+
+          <select
+            v-model="inputSituacao"
+            class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          >
+            <option value="">Qualquer Situação</option>
+            <option v-for="s in situacoesOficiais" :key="s" :value="s">{{ s }}</option>
+          </select>
+
+          <div
+            class="flex gap-2 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 xl:border-l border-slate-200 dark:border-slate-700 xl:pl-3"
+          >
+            <button
+              @click="aplicarFiltros"
+              class="flex-1 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-sm focus:ring-2 focus:ring-blue-400"
+            >
+              Filtrar
+            </button>
+            <button
+              v-if="buscaRealizada"
+              @click="limparFiltros"
+              class="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm transition-all shadow-sm"
+              title="Limpar todos os filtros"
+            >
+              Limpar
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- TELA INICIAL: MENSAGEM PEDINDO PARA PESQUISAR -->
+      <div
+        v-if="!buscaRealizada && !carregando"
+        class="text-center py-24 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors shadow-sm"
+      >
+        <div
+          class="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4"
         >
           <svg
-            v-if="atualizandoTodos"
-            aria-hidden="true"
-            class="animate-spin h-4 w-4 text-white"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            ></circle>
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
-          <svg
-            v-else
-            aria-hidden="true"
-            class="h-4 w-4 text-white"
+            class="w-8 h-8"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -659,199 +840,191 @@ const compartilharWhatsApp = (candidato) => {
               stroke-linecap="round"
               stroke-linejoin="round"
               stroke-width="2"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
             ></path>
           </svg>
-          {{
-            atualizandoTodos
-              ? `Sincronizando ${progressoGlobal.atual}/${progressoGlobal.total}...`
-              : 'Sincronizar Tela com TSE'
-          }}
-        </button>
-      </div>
-
-      <!-- BARRA DE FILTROS COM SELEÇÃO DE ESTADO (UF) -->
-      <div
-        class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row gap-3 items-stretch xl:items-center"
-      >
-        <input
-          v-model="inputBusca"
-          @keyup.enter="aplicarFiltros"
-          type="search"
-          placeholder="Buscar por nome..."
-          class="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-        />
-
-        <!-- FILTRO DE ESTADO (UF) -->
-        <select
-          v-model="inputUf"
-          class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-        >
-          <option value="">Todos os Estados</option>
-          <option v-for="u in ufsOficiais" :key="u.sigla" :value="u.sigla">{{ u.nome }}</option>
-        </select>
-
-        <select
-          v-model="inputCargo"
-          class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-        >
-          <option value="">Todos os Cargos</option>
-          <option v-for="c in cargosOficiais" :key="c" :value="c">{{ c }}</option>
-        </select>
-
-        <select
-          v-model="inputPartido"
-          class="w-full xl:w-36 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-        >
-          <option value="">Partidos (Todos)</option>
-          <option v-for="p in partidosOficiais" :key="p" :value="p">{{ p }}</option>
-        </select>
-
-        <select
-          v-model="inputSituacao"
-          class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-        >
-          <option value="">Qualquer Situação</option>
-          <option v-for="s in situacoesOficiais" :key="s" :value="s">{{ s }}</option>
-        </select>
-
-        <div
-          class="flex gap-2 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 xl:border-l border-slate-200 dark:border-slate-700 xl:pl-3"
-        >
-          <button
-            @click="aplicarFiltros"
-            class="flex-1 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-sm focus:ring-2 focus:ring-blue-400"
-          >
-            Filtrar
-          </button>
-          <button
-            v-if="buscaRealizada"
-            @click="limparFiltros"
-            class="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm transition-all shadow-sm"
-            title="Limpar todos os filtros"
-          >
-            Limpar
-          </button>
         </div>
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-2">
+          Painel de Filtros Avançado
+        </h2>
+        <p class="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto px-4">
+          Cruze informações de Estado, Cargo, Partido e Situação da Candidatura, e clique em
+          <strong>"Filtrar"</strong>.
+        </p>
       </div>
-    </header>
 
-    <!-- TELA INICIAL: MENSAGEM PEDINDO PARA PESQUISAR -->
-    <div
-      v-if="!buscaRealizada && !carregando"
-      class="text-center py-24 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors shadow-sm"
-    >
+      <!-- TELA DE LOADING -->
       <div
-        class="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4"
+        v-else-if="carregando"
+        class="text-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors"
+        aria-live="assertive"
       >
-        <svg
-          class="w-8 h-8"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg"
+        <div
+          class="w-10 h-10 border-4 border-blue-600 dark:border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+          aria-hidden="true"
+        ></div>
+        <p class="text-slate-500 dark:text-slate-400 font-medium text-sm">
+          Carregando candidatos do banco de dados...
+        </p>
+      </div>
+
+      <!-- GRID DE CANDIDATOS (AGORA UTILIZANDO A PAGINAÇÃO VISUAL) -->
+      <section
+        v-else-if="candidatosPaginados.length > 0"
+        class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+        aria-label="Lista de Candidatos"
+      >
+        <article
+          v-for="candidato in candidatosPaginados"
+          :key="candidato.id"
+          class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-md dark:hover:shadow-slate-800/50 transition-all border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col justify-between focus-within:ring-2 focus-within:ring-blue-400"
+          :class="{ 'ring-4 ring-indigo-500 shadow-lg': isSelecionadoParaComparar(candidato) }"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          ></path>
-        </svg>
-      </div>
-      <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-2">
-        Painel de Filtros Avançado
-      </h2>
-      <p class="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto px-4">
-        Cruze informações de Estado, Cargo, Partido e Situação da Candidatura, e clique em
-        <strong>"Filtrar"</strong>.
-      </p>
-    </div>
+          <div class="p-6">
+            <div
+              class="relative mb-4 flex justify-center bg-slate-50 dark:bg-slate-800/50 py-4 rounded-xl border border-slate-100 dark:border-slate-700/50"
+              :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+            >
+              <img
+                :src="candidato.fotoUrl"
+                :alt="`Foto oficial de urna do candidato ${candidato.nomeUrna}`"
+                class="w-32 h-40 object-cover border border-slate-300 dark:border-slate-600 shadow-sm rounded bg-slate-200 dark:bg-slate-700"
+                @error="(e) => tratarErroFoto(e, candidato)"
+              />
+            </div>
 
-    <!-- TELA DE LOADING -->
-    <div
-      v-else-if="carregando"
-      class="text-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors"
-      aria-live="assertive"
-    >
-      <div
-        class="w-10 h-10 border-4 border-blue-600 dark:border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"
-        aria-hidden="true"
-      ></div>
-      <p class="text-slate-500 dark:text-slate-400 font-medium text-sm">
-        Carregando candidatos do banco de dados...
-      </p>
-    </div>
+            <div
+              class="flex items-center space-x-4 mb-4"
+              :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+            >
+              <div class="w-full">
+                <div class="flex items-center gap-1.5 flex-wrap mb-1.5">
+                  <span
+                    class="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                  >
+                    Nº {{ candidato.numero }}
+                  </span>
 
-    <!-- GRID DE CANDIDATOS (AGORA UTILIZANDO A PAGINAÇÃO VISUAL) -->
-    <section
-      v-else-if="candidatosPaginados.length > 0"
-      class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
-      aria-label="Lista de Candidatos"
-    >
-      <article
-        v-for="candidato in candidatosPaginados"
-        :key="candidato.id"
-        class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-md dark:hover:shadow-slate-800/50 transition-all border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col justify-between focus-within:ring-2 focus-within:ring-blue-400"
-        :class="{ 'ring-4 ring-indigo-500 shadow-lg': isSelecionadoParaComparar(candidato) }"
-      >
-        <div class="p-6">
-          <div
-            class="relative mb-4 flex justify-center bg-slate-50 dark:bg-slate-800/50 py-4 rounded-xl border border-slate-100 dark:border-slate-700/50"
-            :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
-          >
-            <img
-              :src="candidato.fotoUrl"
-              :alt="`Foto oficial de urna do candidato ${candidato.nomeUrna}`"
-              class="w-32 h-40 object-cover border border-slate-300 dark:border-slate-600 shadow-sm rounded bg-slate-200 dark:bg-slate-700"
-              @error="(e) => tratarErroFoto(e, candidato)"
-            />
-          </div>
+                  <span
+                    class="inline-block bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full uppercase"
+                  >
+                    {{ candidato.uf === 'BR' ? 'Brasil' : candidato.uf }}
+                  </span>
 
-          <div
-            class="flex items-center space-x-4 mb-4"
-            :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
-          >
-            <div class="w-full">
-              <div class="flex items-center gap-1.5 flex-wrap mb-1.5">
-                <span
-                  class="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                  <span
+                    class="inline-block bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700"
+                  >
+                    {{ calcularIdade(candidato.dataDeNascimento) }}
+                  </span>
+                </div>
+
+                <h2 class="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                  {{ candidato.nomeUrna }}
+                </h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {{ candidato.cargo }}
+                  <span class="font-bold text-slate-700 dark:text-slate-300"
+                    >({{ candidato.uf === 'BR' ? 'Nacional' : candidato.uf }})</span
+                  >
+                  • {{ candidato.partido }}
+                </p>
+
+                <div
+                  v-if="['Presidente', 'Governador'].includes(candidato.cargo)"
+                  class="mt-3 flex items-start gap-1.5 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/50 p-2 rounded-lg"
+                  aria-label="Vice"
                 >
-                  Nº {{ candidato.numero }}
-                </span>
-
-                <span
-                  class="inline-block bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full uppercase"
-                >
-                  {{ candidato.uf === 'BR' ? 'Brasil' : candidato.uf }}
-                </span>
-
-                <span
-                  class="inline-block bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700"
-                >
-                  {{ calcularIdade(candidato.dataDeNascimento) }}
-                </span>
+                  <svg
+                    aria-hidden="true"
+                    class="w-4 h-4 text-indigo-500 dark:text-indigo-400 mt-0.5 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    ></path>
+                  </svg>
+                  <div class="flex-grow">
+                    <p
+                      class="text-[10px] font-bold text-indigo-800 dark:text-indigo-300 leading-tight"
+                    >
+                      <span class="opacity-75 uppercase tracking-wider block mb-0.5">Vice:</span>
+                      <template v-if="candidato.vices && candidato.vices.length > 0">
+                        {{ candidato.vices.join(' • ') }}
+                      </template>
+                      <template v-else>
+                        <span class="italic opacity-70 block mt-0.5 leading-snug">
+                          O TSE ainda não processou a documentação.
+                        </span>
+                      </template>
+                    </p>
+                  </div>
+                </div>
               </div>
+            </div>
 
-              <h2 class="text-lg font-bold text-slate-900 dark:text-white leading-tight">
-                {{ candidato.nomeUrna }}
-              </h2>
-              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {{ candidato.cargo }}
-                <span class="font-bold text-slate-700 dark:text-slate-300"
-                  >({{ candidato.uf === 'BR' ? 'Nacional' : candidato.uf }})</span
-                >
-                • {{ candidato.partido }}
-              </p>
-
+            <div class="space-y-2 mb-6" aria-live="polite">
               <div
-                v-if="['Presidente', 'Governador'].includes(candidato.cargo)"
-                class="mt-3 flex items-start gap-1.5 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/50 p-2 rounded-lg"
-                aria-label="Vice"
+                class="p-3 rounded-sm text-white transition-colors duration-300"
+                :class="[
+                  atualizandoId === candidato.id ? 'opacity-70' : '',
+                  getCorSituacao(candidato.situacaoCandidatura),
+                ]"
+              >
+                <p class="text-sm font-bold truncate">
+                  {{ candidato.situacaoCandidatura || 'Não informado' }}
+                </p>
+                <p class="text-[10px] uppercase opacity-90">Situação Candidatura</p>
+              </div>
+              <div
+                class="p-3 rounded-sm text-white transition-colors duration-300"
+                :class="[
+                  atualizandoId === candidato.id ? 'opacity-70' : '',
+                  getCorSituacao(candidato.situacaoPartido),
+                ]"
+              >
+                <p class="text-sm font-bold truncate">
+                  {{ candidato.situacaoPartido || 'Não informado' }}
+                </p>
+                <p class="text-[10px] uppercase opacity-90">Situação Coligação</p>
+              </div>
+              <button
+                @click="verificarStatusEmTempoReal(candidato)"
+                :disabled="atualizandoId === candidato.id || atualizandoTodos"
+                :aria-label="`Sincronizar dados completos de ${candidato.nomeUrna} no TSE`"
+                class="w-full flex items-center justify-center gap-2 text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-slate-400 text-slate-700 dark:text-slate-300 py-2 rounded-sm transition-all disabled:opacity-50 mt-1"
               >
                 <svg
+                  v-if="atualizandoId === candidato.id"
                   aria-hidden="true"
-                  class="w-4 h-4 text-indigo-500 dark:text-indigo-400 mt-0.5 shrink-0"
+                  class="animate-spin h-3.5 w-3.5 text-slate-700 dark:text-slate-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <svg
+                  v-else
+                  aria-hidden="true"
+                  class="h-3.5 w-3.5 text-slate-700 dark:text-slate-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -861,287 +1034,200 @@ const compartilharWhatsApp = (candidato) => {
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   ></path>
                 </svg>
-                <div class="flex-grow">
-                  <p
-                    class="text-[10px] font-bold text-indigo-800 dark:text-indigo-300 leading-tight"
-                  >
-                    <span class="opacity-75 uppercase tracking-wider block mb-0.5">Vice:</span>
-                    <template v-if="candidato.vices && candidato.vices.length > 0">
-                      {{ candidato.vices.join(' • ') }}
-                    </template>
-                    <template v-else>
-                      <span class="italic opacity-70 block mt-0.5 leading-snug">
-                        O TSE ainda não processou a documentação.
-                      </span>
-                    </template>
-                  </p>
-                </div>
+                {{ atualizandoId === candidato.id ? 'Baixando dados...' : 'Sincronizar Ficha' }}
+              </button>
+            </div>
+
+            <div
+              class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 dark:border-slate-800"
+              :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+            >
+              <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl">
+                <span
+                  class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block font-bold mb-0.5"
+                  >Limite 1º Turno</span
+                >
+                <span
+                  class="text-sm font-bold text-slate-700 dark:text-slate-300 block truncate"
+                  :title="formatarMoeda(candidato.limiteGastos1T)"
+                  >{{ formatarMoeda(candidato.limiteGastos1T) }}</span
+                >
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl">
+                <span
+                  class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block font-bold mb-0.5"
+                  >Limite 2º Turno</span
+                >
+                <span
+                  class="text-sm font-bold text-slate-700 dark:text-slate-300 block truncate"
+                  :title="formatarMoeda(candidato.limiteGastos2T)"
+                  >{{
+                    candidato.limiteGastos2T > 0
+                      ? formatarMoeda(candidato.limiteGastos2T)
+                      : 'Não se aplica'
+                  }}</span
+                >
               </div>
             </div>
+
+            <div
+              class="mt-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl flex justify-between items-center"
+              :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+            >
+              <span
+                class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-0.5"
+                >Bens Declarados</span
+              >
+              <span class="text-sm font-bold text-slate-800 dark:text-slate-200">{{
+                formatarMoeda(candidato.totalBens)
+              }}</span>
+            </div>
           </div>
 
-          <div class="space-y-2 mb-6" aria-live="polite">
-            <div
-              class="p-3 rounded-sm text-white transition-colors duration-300"
-              :class="[
-                atualizandoId === candidato.id ? 'opacity-70' : '',
-                getCorSituacao(candidato.situacaoCandidatura),
-              ]"
-            >
-              <p class="text-sm font-bold truncate">
-                {{ candidato.situacaoCandidatura || 'Não informado' }}
-              </p>
-              <p class="text-[10px] uppercase opacity-90">Situação Candidatura</p>
-            </div>
-            <div
-              class="p-3 rounded-sm text-white transition-colors duration-300"
-              :class="[
-                atualizandoId === candidato.id ? 'opacity-70' : '',
-                getCorSituacao(candidato.situacaoPartido),
-              ]"
-            >
-              <p class="text-sm font-bold truncate">
-                {{ candidato.situacaoPartido || 'Não informado' }}
-              </p>
-              <p class="text-[10px] uppercase opacity-90">Situação Coligação</p>
-            </div>
+          <div
+            class="bg-slate-50 dark:bg-slate-800/30 px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2"
+            :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+          >
             <button
-              @click="verificarStatusEmTempoReal(candidato)"
-              :disabled="atualizandoId === candidato.id || atualizandoTodos"
-              :aria-label="`Sincronizar dados completos de ${candidato.nomeUrna} no TSE`"
-              class="w-full flex items-center justify-center gap-2 text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-slate-400 text-slate-700 dark:text-slate-300 py-2 rounded-sm transition-all disabled:opacity-50 mt-1"
+              @click="abrirModal(candidato, 'bens')"
+              :aria-label="`Ver bens de ${candidato.nomeUrna}`"
+              class="flex-1 text-center py-2 px-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
+            >
+              Bens
+            </button>
+
+            <button
+              @click="abrirModal(candidato, 'raiox')"
+              :disabled="!isDeputadoCamara(candidato)"
+              :title="
+                !isDeputadoCamara(candidato)
+                  ? 'Apenas para Deputados Federais em exercício'
+                  : 'Ver Raio-X na Câmara'
+              "
+              :aria-label="`Ver Raio-X da câmara de ${candidato.nomeUrna}`"
+              class="flex-1 text-center py-2 px-2 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              :class="
+                isDeputadoCamara(candidato)
+                  ? 'bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60 border border-slate-200 dark:border-slate-700'
+              "
+            >
+              🏛️ Raio-X
+            </button>
+
+            <button
+              @click="toggleComparacao(candidato)"
+              :aria-pressed="isSelecionadoParaComparar(candidato)"
+              :aria-label="
+                isSelecionadoParaComparar(candidato)
+                  ? `Remover ${candidato.nomeUrna} da comparação`
+                  : `Adicionar ${candidato.nomeUrna} para comparação`
+              "
+              :class="
+                isSelecionadoParaComparar(candidato)
+                  ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 dark:border-indigo-500'
+                  : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              "
+              class="flex-none text-center py-2 px-3 border text-xs font-black rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors shadow-sm relative z-30"
+            >
+              VS
+            </button>
+
+            <button
+              @click="compartilharWhatsApp(candidato)"
+              :aria-label="`Compartilhar ficha de ${candidato.nomeUrna} no WhatsApp`"
+              class="flex-none flex items-center justify-center py-2 px-3 bg-green-600 dark:bg-green-700 hover:bg-green-700 dark:hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 text-white rounded-xl transition-colors shadow-sm relative z-30"
             >
               <svg
-                v-if="atualizandoId === candidato.id"
                 aria-hidden="true"
-                class="animate-spin h-3.5 w-3.5 text-slate-700 dark:text-slate-400"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  class="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                ></circle>
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              <svg
-                v-else
-                aria-hidden="true"
-                class="h-3.5 w-3.5 text-slate-700 dark:text-slate-400"
-                fill="none"
-                stroke="currentColor"
+                class="w-4 h-4"
+                fill="currentColor"
                 viewBox="0 0 24 24"
                 xmlns="http://www.w3.org/2000/svg"
               >
                 <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                ></path>
+                  d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"
+                />
               </svg>
-              {{ atualizandoId === candidato.id ? 'Baixando dados...' : 'Sincronizar Ficha' }}
             </button>
           </div>
+        </article>
+      </section>
 
-          <div
-            class="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 dark:border-slate-800"
-            :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
-          >
-            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl">
-              <span
-                class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block font-bold mb-0.5"
-                >Limite 1º Turno</span
-              >
-              <span
-                class="text-sm font-bold text-slate-700 dark:text-slate-300 block truncate"
-                :title="formatarMoeda(candidato.limiteGastos1T)"
-                >{{ formatarMoeda(candidato.limiteGastos1T) }}</span
-              >
-            </div>
-            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl">
-              <span
-                class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block font-bold mb-0.5"
-                >Limite 2º Turno</span
-              >
-              <span
-                class="text-sm font-bold text-slate-700 dark:text-slate-300 block truncate"
-                :title="formatarMoeda(candidato.limiteGastos2T)"
-                >{{
-                  candidato.limiteGastos2T > 0
-                    ? formatarMoeda(candidato.limiteGastos2T)
-                    : 'Não se aplica'
-                }}</span
-              >
-            </div>
-          </div>
-
-          <div
-            class="mt-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl flex justify-between items-center"
-            :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
-          >
-            <span
-              class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-0.5"
-              >Bens Declarados</span
-            >
-            <span class="text-sm font-bold text-slate-800 dark:text-slate-200">{{
-              formatarMoeda(candidato.totalBens)
-            }}</span>
-          </div>
-        </div>
-
-        <div
-          class="bg-slate-50 dark:bg-slate-800/30 px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2"
-          :class="{ 'opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
+      <!-- 🌟 BOTÃO DE CARREGAR MAIS (PAGINAÇÃO VIRTUAL) -->
+      <div v-if="candidatosFiltrados.length > limiteExibicao" class="flex justify-center mt-10">
+        <button
+          @click="carregarMais"
+          class="px-8 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl shadow-sm transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-2"
         >
-          <button
-            @click="abrirModal(candidato, 'bens')"
-            :aria-label="`Ver bens de ${candidato.nomeUrna}`"
-            class="flex-1 text-center py-2 px-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30"
+          <span
+            >Mostrar mais candidatos ({{
+              candidatosFiltrados.length - limiteExibicao
+            }}
+            restantes)</span
           >
-            Bens
-          </button>
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            ></path>
+          </svg>
+        </button>
+      </div>
 
-          <button
-            @click="abrirModal(candidato, 'raiox')"
-            :disabled="!isDeputadoCamara(candidato)"
-            :title="
-              !isDeputadoCamara(candidato)
-                ? 'Apenas para Deputados Federais em exercício'
-                : 'Ver Raio-X na Câmara'
-            "
-            :aria-label="`Ver Raio-X da câmara de ${candidato.nomeUrna}`"
-            class="flex-1 text-center py-2 px-2 text-xs font-bold rounded-xl transition-colors shadow-sm relative z-30 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            :class="
-              isDeputadoCamara(candidato)
-                ? 'bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60 border border-slate-200 dark:border-slate-700'
-            "
-          >
-            🏛️ Raio-X
-          </button>
-
-          <button
-            @click="toggleComparacao(candidato)"
-            :aria-pressed="isSelecionadoParaComparar(candidato)"
-            :aria-label="
-              isSelecionadoParaComparar(candidato)
-                ? `Remover ${candidato.nomeUrna} da comparação`
-                : `Adicionar ${candidato.nomeUrna} para comparação`
-            "
-            :class="
-              isSelecionadoParaComparar(candidato)
-                ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 dark:border-indigo-500'
-                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            "
-            class="flex-none text-center py-2 px-3 border text-xs font-black rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors shadow-sm relative z-30"
-          >
-            VS
-          </button>
-
-          <button
-            @click="compartilharWhatsApp(candidato)"
-            :aria-label="`Compartilhar ficha de ${candidato.nomeUrna} no WhatsApp`"
-            class="flex-none flex items-center justify-center py-2 px-3 bg-green-600 dark:bg-green-700 hover:bg-green-700 dark:hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 text-white rounded-xl transition-colors shadow-sm relative z-30"
-          >
-            <svg
-              aria-hidden="true"
-              class="w-4 h-4"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"
-              />
-            </svg>
-          </button>
-        </div>
-      </article>
-    </section>
-
-    <!-- 🌟 BOTÃO DE CARREGAR MAIS (PAGINAÇÃO VIRTUAL) -->
-    <div v-if="candidatosFiltrados.length > limiteExibicao" class="flex justify-center mt-10">
-      <button
-        @click="carregarMais"
-        class="px-8 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl shadow-sm transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-2"
+      <!-- CASO O USUÁRIO REALIZE UMA BUSCA E NÃO ENCONTRE NADA -->
+      <div
+        v-else-if="buscaRealizada && candidatosFiltrados.length === 0"
+        class="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors shadow-sm"
+        aria-live="polite"
       >
-        <span
-          >Mostrar mais candidatos ({{
-            candidatosFiltrados.length - limiteExibicao
-          }}
-          restantes)</span
-        >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M19 9l-7 7-7-7"
-          ></path>
-        </svg>
-      </button>
-    </div>
-
-    <!-- CASO O USUÁRIO REALIZE UMA BUSCA E NÃO ENCONTRE NADA -->
-    <div
-      v-else-if="buscaRealizada && candidatosFiltrados.length === 0"
-      class="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors shadow-sm"
-      aria-live="polite"
-    >
-      <p class="text-slate-500 dark:text-slate-400 text-base">
-        Nenhum candidato encontrado com os critérios selecionados.
-      </p>
-    </div>
-
-    <!-- Barra VS -->
-    <div
-      v-if="candidatosComparacao.length > 0"
-      role="region"
-      aria-label="Controle de Comparação"
-      class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 dark:bg-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl z-40 flex items-center justify-between gap-6 animate-fade-in border border-slate-700 dark:border-slate-600 w-[90%] max-w-lg"
-    >
-      <div class="flex items-center gap-3">
-        <span
-          class="bg-indigo-500 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-inner border border-indigo-400"
-          aria-hidden="true"
-          >{{ candidatosComparacao.length }}</span
-        >
-        <span class="text-sm font-semibold tracking-wide"
-          >{{ candidatosComparacao.length }} candidatos selecionados para comparar</span
-        >
+        <p class="text-slate-500 dark:text-slate-400 text-base">
+          Nenhum candidato encontrado com os critérios selecionados.
+        </p>
       </div>
-      <div class="flex gap-2">
-        <button
-          v-if="candidatosComparacao.length === 2"
-          @click="abrirComparacao"
-          aria-label="Abrir janela de comparação direta"
-          class="bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-300 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-lg ring-2 ring-indigo-500/50"
-        >
-          Comparar Agora
-        </button>
-        <button
-          @click="limparComparacao"
-          aria-label="Limpar lista de comparação"
-          class="bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors border border-slate-600 dark:border-slate-500"
-        >
-          Limpar
-        </button>
+
+      <!-- Barra VS -->
+      <div
+        v-if="candidatosComparacao.length > 0"
+        role="region"
+        aria-label="Controle de Comparação"
+        class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 dark:bg-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl z-40 flex items-center justify-between gap-6 animate-fade-in border border-slate-700 dark:border-slate-600 w-[90%] max-w-lg"
+      >
+        <div class="flex items-center gap-3">
+          <span
+            class="bg-indigo-500 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-inner border border-indigo-400"
+            aria-hidden="true"
+            >{{ candidatosComparacao.length }}</span
+          >
+          <span class="text-sm font-semibold tracking-wide"
+            >{{ candidatosComparacao.length }} candidatos selecionados para comparar</span
+          >
+        </div>
+        <div class="flex gap-2">
+          <button
+            v-if="candidatosComparacao.length === 2"
+            @click="abrirComparacao"
+            aria-label="Abrir janela de comparação direta"
+            class="bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-300 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-lg ring-2 ring-indigo-500/50"
+          >
+            Comparar Agora
+          </button>
+          <button
+            @click="limparComparacao"
+            aria-label="Limpar lista de comparação"
+            class="bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl transition-colors border border-slate-600 dark:border-slate-500"
+          >
+            Limpar
+          </button>
+        </div>
       </div>
-    </div>
-  </main>
+    </main>
+  </div>
 
   <!-- MODAL DE BENS COM CASAS DECIMAIS E DARK MODE -->
   <div
@@ -1421,9 +1507,6 @@ const compartilharWhatsApp = (candidato) => {
             >
               <img
                 :src="cand.fotoUrl"
-                referrerpolicy="no-referrer"
-                loading="lazy"
-                :alt="`Foto oficial de ${cand.nomeUrna}`"
                 class="w-24 h-32 object-cover rounded-xl shadow-md border-2 border-white dark:border-slate-700 mb-3 bg-slate-200 dark:bg-slate-800"
                 @error="
                   (e) => {

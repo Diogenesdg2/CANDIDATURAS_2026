@@ -189,8 +189,18 @@ const iniciarImportacao = async () => {
         textoStatus.value = `Baixando do TSE: ${atual} de ${total} (${nome})`
       },
     )
+
+    // Atualiza a interface informando que os dados agora existem
     await checarBanco()
     importando.value = false
+
+    // 🌟 MENSAGEM DE SUCESSO EXIBINDO O TOTAL
+    // Usamos o progressoTotal.value porque ele armazena exatamente a quantidade que o TSE nos enviou
+    alert(
+      `✅ Importação concluída com sucesso!\n\nForam salvos ${progressoTotal.value} candidatos no seu banco de dados. A tela não será redirecionada automaticamente para economizar leituras no Firebase.`,
+    )
+
+    // ATENÇÃO: Se havia um router.push(...) aqui, ele foi removido!
   } catch (e) {
     alert('Erro ao importar. O servidor do TSE pode ter bloqueado temporariamente.')
     importando.value = false
