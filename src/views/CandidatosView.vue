@@ -285,147 +285,6 @@ const abrirModal = async (candidato, tipo) => {
   }
 }
 
-const categorizarBens = (listaDeBens, totalGeral) => {
-  if (!listaDeBens || !Array.isArray(listaDeBens) || listaDeBens.length === 0 || totalGeral === 0)
-    return null
-
-  let categorias = {
-    imoveis: { valor: 0, cor: 'bg-emerald-500', label: 'Imóveis' },
-    investimentos: { valor: 0, cor: 'bg-blue-500', label: 'Investimentos & Dinheiro' },
-    veiculos: { valor: 0, cor: 'bg-amber-500', label: 'Veículos' },
-    animais: { valor: 0, cor: 'bg-orange-600', label: 'Animais & Rebanho' },
-    empresas: { valor: 0, cor: 'bg-purple-500', label: 'Empresas & Outros' },
-  }
-
-  listaDeBens.forEach((bem) => {
-    const desc = (bem.descricao || '').toLowerCase()
-    const tipo = (bem.tipo || '').toLowerCase()
-    const textoCompleto = desc + ' ' + tipo
-    const valor = bem.valor || 0
-
-    if (
-      textoCompleto.includes('apartamento') ||
-      textoCompleto.includes('casa') ||
-      textoCompleto.includes('terreno') ||
-      textoCompleto.includes('terra') ||
-      textoCompleto.includes('imovel') ||
-      textoCompleto.includes('imóvel') ||
-      textoCompleto.includes('sala') ||
-      textoCompleto.includes('fazenda') ||
-      textoCompleto.includes('lote') ||
-      textoCompleto.includes('gleba') ||
-      textoCompleto.includes('predio') ||
-      textoCompleto.includes('prédio') ||
-      textoCompleto.includes('chacara') ||
-      textoCompleto.includes('chácara') ||
-      textoCompleto.includes('rural') ||
-      textoCompleto.includes('urbano') ||
-      textoCompleto.includes('sitio') ||
-      textoCompleto.includes('sítio')
-    ) {
-      categorias.imoveis.valor += valor
-    } else if (
-      textoCompleto.includes('veículo') ||
-      textoCompleto.includes('veiculo') ||
-      textoCompleto.includes('carro') ||
-      textoCompleto.includes('moto') ||
-      textoCompleto.includes('caminhonete') ||
-      textoCompleto.includes('caminhao') ||
-      textoCompleto.includes('caminhão') ||
-      textoCompleto.includes('embarcacao') ||
-      textoCompleto.includes('lancha') ||
-      textoCompleto.includes('aeronave') ||
-      textoCompleto.includes('kombi') ||
-      textoCompleto.includes('golf') ||
-      textoCompleto.includes('creta') ||
-      textoCompleto.includes('omega') ||
-      textoCompleto.includes('up') ||
-      textoCompleto.includes('honda') ||
-      textoCompleto.includes('toyota') ||
-      textoCompleto.includes('fiat') ||
-      textoCompleto.includes('volkswagen') ||
-      textoCompleto.includes('chevrolet') ||
-      textoCompleto.includes('ford') ||
-      textoCompleto.includes('hyundai') ||
-      textoCompleto.includes('jeep') ||
-      textoCompleto.includes('hilux') ||
-      textoCompleto.includes('corolla') ||
-      textoCompleto.includes('onix') ||
-      textoCompleto.includes('strada') ||
-      textoCompleto.includes('bis')
-    ) {
-      categorias.veiculos.valor += valor
-    } else if (
-      textoCompleto.includes('cavalo') ||
-      textoCompleto.includes('égua') ||
-      textoCompleto.includes('egua') ||
-      textoCompleto.includes('potro') ||
-      textoCompleto.includes('mula') ||
-      textoCompleto.includes('boi') ||
-      textoCompleto.includes('vaca') ||
-      textoCompleto.includes('gado') ||
-      textoCompleto.includes('rebanho') ||
-      textoCompleto.includes('animal') ||
-      textoCompleto.includes('mangalarga') ||
-      textoCompleto.includes('quartilha') ||
-      textoCompleto.includes('touro')
-    ) {
-      categorias.animais.valor += valor
-    } else if (
-      textoCompleto.includes('poupanca') ||
-      textoCompleto.includes('poupança') ||
-      textoCompleto.includes('aplicacao') ||
-      textoCompleto.includes('aplicação') ||
-      textoCompleto.includes('fundo') ||
-      textoCompleto.includes('acoes') ||
-      textoCompleto.includes('ações') ||
-      textoCompleto.includes('cdb') ||
-      textoCompleto.includes('dinheiro') ||
-      textoCompleto.includes('especie') ||
-      textoCompleto.includes('espécie') ||
-      textoCompleto.includes('conta') ||
-      textoCompleto.includes('deposito') ||
-      textoCompleto.includes('depósito') ||
-      textoCompleto.includes('renda fixa') ||
-      textoCompleto.includes('tesouro') ||
-      textoCompleto.includes('consorcio') ||
-      textoCompleto.includes('consórcio') ||
-      textoCompleto.includes('banco') ||
-      textoCompleto.includes('bco') ||
-      textoCompleto.includes('bradesco') ||
-      textoCompleto.includes('brasil') ||
-      textoCompleto.includes('itau') ||
-      textoCompleto.includes('santander') ||
-      textoCompleto.includes('caixa')
-    ) {
-      categorias.investimentos.valor += valor
-    } else {
-      categorias.empresas.valor += valor
-    }
-  })
-
-  return Object.values(categorias)
-    .filter((cat) => cat.valor > 0)
-    .map((cat) => {
-      const percentualReal = (cat.valor / totalGeral) * 100
-      const percentualFormatado = percentualReal > 0 && percentualReal < 0.1 ? 0.1 : percentualReal
-
-      return {
-        ...cat,
-        percentual: percentualReal,
-        percentualTexto: percentualFormatado.toFixed(1).replace('.', ','),
-      }
-    })
-    .sort((a, b) => b.valor - a.valor)
-}
-
-const bensClassificadosAtuais = computed(() => {
-  if (tipoModal.value === 'bens' && candidatoAtivo.value) {
-    return categorizarBens(candidatoAtivo.value.bens, candidatoAtivo.value.totalBens)
-  }
-  return null
-})
-
 const candidatosComparacao = ref([])
 const modalComparacaoAberto = ref(false)
 
@@ -1229,7 +1088,7 @@ const compartilharWhatsApp = (candidato) => {
     </main>
   </div>
 
-  <!-- MODAL DE BENS COM CASAS DECIMAIS E DARK MODE -->
+  <!-- MODAL DE BENS E RAIO-X COM DARK MODE -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
@@ -1272,50 +1131,6 @@ const compartilharWhatsApp = (candidato) => {
 
       <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar">
         <div v-if="tipoModal === 'bens'">
-          <div
-            class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl mb-4 border border-slate-200 dark:border-slate-800 flex flex-col gap-3"
-          >
-            <div class="flex justify-between items-center w-full">
-              <span
-                class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold"
-                >Total Declarado</span
-              >
-              <span class="text-lg text-slate-900 dark:text-white font-black">{{
-                formatarMoeda(candidatoAtivo.totalBens)
-              }}</span>
-            </div>
-
-            <div
-              v-if="bensClassificadosAtuais && bensClassificadosAtuais.length > 0"
-              class="w-full"
-            >
-              <div
-                class="w-full h-3 rounded-full flex overflow-hidden mb-2 shadow-inner border border-slate-200/50 dark:border-slate-700"
-              >
-                <div
-                  v-for="cat in bensClassificadosAtuais"
-                  :key="cat.label"
-                  :class="cat.cor"
-                  :style="{ width: `${cat.percentual}%` }"
-                  class="h-full"
-                ></div>
-              </div>
-
-              <div class="flex flex-wrap gap-x-4 gap-y-1">
-                <div
-                  v-for="cat in bensClassificadosAtuais"
-                  :key="'leg-' + cat.label"
-                  class="flex items-center gap-1.5"
-                >
-                  <span class="w-2.5 h-2.5 rounded-full inline-block" :class="cat.cor"></span>
-                  <span class="text-[10px] font-bold text-slate-600 dark:text-slate-400"
-                    >{{ cat.label }} ({{ cat.percentualTexto }}%)</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div v-if="candidatoAtivo.bens && candidatoAtivo.bens.length > 0">
             <div
               v-for="(bem, i) in candidatoAtivo.bens"
@@ -1348,7 +1163,7 @@ const compartilharWhatsApp = (candidato) => {
               Conectando ao Portal de Dados Abertos da Câmara...
             </p>
             <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
-              Buscando despesas (CEAP) e projetos de lei recentes.
+              Buscando projetos de lei recentes.
             </p>
           </div>
           <div
