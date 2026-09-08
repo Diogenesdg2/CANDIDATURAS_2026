@@ -454,10 +454,10 @@ const limparComparacao = () => {
   candidatosComparacao.value = []
 }
 
-const obterMaiorBem = (bens) => {
-  if (!bens || bens.length === 0) return { descricao: 'Nenhum bem declarado', valor: 0 }
-  const ordenado = [...bens].sort((a, b) => b.valor - a.valor)
-  return ordenado[0]
+// 🔥 NOVO: ORDENA TODOS OS BENS DO MAIS CARO PARA O MAIS BARATO
+const ordenarBens = (bens) => {
+  if (!bens || bens.length === 0) return []
+  return [...bens].sort((a, b) => b.valor - a.valor)
 }
 
 const isDeputadoCamara = (candidato) => {
@@ -1568,29 +1568,51 @@ const compartilharWhatsApp = (candidato) => {
                 <p
                   class="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-500 font-bold mb-0.5"
                 >
-                  Patrimônio Declarado
+                  Patrimônio Total
                 </p>
                 <p class="text-lg font-black text-emerald-900 dark:text-emerald-400">
                   {{ formatarMoeda(cand.totalBens) }}
                 </p>
               </div>
+
+              <!-- 🔥 CAIXA COM A LISTA DE TODOS OS BENS COM SCROLL -->
               <div
-                class="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-center h-full flex flex-col justify-center"
+                class="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 h-64 flex flex-col"
               >
                 <p
-                  class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1"
+                  class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-2 text-center shrink-0"
                 >
-                  Item Mais Caro Declarado
+                  Lista de Bens Declarados
                 </p>
-                <p
-                  class="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-snug line-clamp-2 mb-1"
-                  :title="obterMaiorBem(cand.bens).descricao"
-                >
-                  {{ obterMaiorBem(cand.bens).descricao }}
-                </p>
-                <p class="text-sm font-black text-slate-900 dark:text-white">
-                  {{ formatarMoeda(obterMaiorBem(cand.bens).valor) }}
-                </p>
+
+                <div class="overflow-y-auto custom-scrollbar pr-1 flex-grow space-y-2">
+                  <template v-if="cand.bens && cand.bens.length > 0">
+                    <div
+                      v-for="(bem, i) in ordenarBens(cand.bens)"
+                      :key="i"
+                      class="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 p-2 rounded flex flex-col"
+                    >
+                      <span
+                        class="text-[9px] font-bold uppercase text-slate-400 dark:text-slate-500"
+                        >{{ bem.tipo }}</span
+                      >
+                      <span
+                        class="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-snug line-clamp-2 mt-0.5"
+                        :title="bem.descricao"
+                      >
+                        {{ bem.descricao }}
+                      </span>
+                      <span class="text-sm font-black text-slate-900 dark:text-white mt-1">
+                        {{ formatarMoeda(bem.valor) }}
+                      </span>
+                    </div>
+                  </template>
+                  <div v-else class="h-full flex items-center justify-center">
+                    <span class="text-xs text-slate-400 dark:text-slate-500 italic"
+                      >Nenhum bem declarado</span
+                    >
+                  </div>
+                </div>
               </div>
             </div>
           </article>
