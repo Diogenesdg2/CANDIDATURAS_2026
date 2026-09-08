@@ -251,12 +251,10 @@ onMounted(async () => {
   emManutencao.value = await getStatusManutencao()
   carregandoConfig.value = false
 
-  // Se o site está em manutenção E não é o desenvolvedor local, para a execução aqui!
   if (emManutencao.value && !isDev) {
     return
   }
 
-  // Se passou no bloqueio, carrega normal
   if (ufUrl || cargoUrl) {
     await aplicarFiltros()
   }
@@ -313,7 +311,7 @@ const limparComparacao = () => {
   candidatosComparacao.value = []
 }
 
-// 🔥 ORDENA TODOS OS BENS DO MAIS CARO PARA O MAIS BARATO
+// ORDENA TODOS OS BENS DO MAIS CARO PARA O MAIS BARATO
 const ordenarBens = (bens) => {
   if (!bens || bens.length === 0) return []
   return [...bens].sort((a, b) => b.valor - a.valor)
@@ -352,6 +350,14 @@ const calcularIdade = (dataStr) => {
   return 'Idade N/I'
 }
 
+// Alerta visual de que o Plano de Governo ainda não foi salvo
+const alertarFaltaPlano = (e) => {
+  e.preventDefault()
+  alert(
+    'O Plano de Governo ainda não foi mapeado no banco de dados para este candidato. Clique no botão "Sincronizar Ficha" para tentar baixar a versão mais recente diretamente do TSE.',
+  )
+}
+
 const verificarStatusEmTempoReal = async (candidato) => {
   if (atualizandoTodos.value) return
   atualizandoId.value = candidato.id
@@ -366,6 +372,9 @@ const verificarStatusEmTempoReal = async (candidato) => {
     candidato.dataDeNascimento = novosDados.dataDeNascimento
     candidato.vices = [...novosDados.vices]
     candidato.fotoUrl = novosDados.fotoUrl
+
+    candidato.sites = novosDados.sites || []
+    candidato.planoGovernoUrl = novosDados.planoGovernoUrl || null
   } catch (error) {
     alert('A requisição falhou no servidor TSE. Tente novamente mais tarde.')
   } finally {
@@ -395,6 +404,9 @@ const atualizarTodosStatus = async () => {
       candidato.dataDeNascimento = novosDados.dataDeNascimento
       candidato.vices = [...novosDados.vices]
       candidato.fotoUrl = novosDados.fotoUrl
+
+      candidato.sites = novosDados.sites || []
+      candidato.planoGovernoUrl = novosDados.planoGovernoUrl || null
     } catch (error) {
       console.warn(`Falha ao sincronizar ${candidato.nomeUrna}.`)
     }
@@ -824,6 +836,51 @@ const compartilharWhatsApp = (candidato) => {
                     </p>
                   </div>
                 </div>
+
+                <!-- 🔥 BOTÕES DE REDES SOCIAIS (EM MODAL) E PLANO DE GOVERNO -->
+                <div
+                  class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2"
+                >
+                  <!-- Botão Redes Sociais -->
+                  <button
+                    @click="abrirModal(candidato, 'redes')"
+                    class="flex items-center justify-center gap-2 w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold transition-colors"
+                  >
+                    <svg
+                      class="w-4 h-4 text-blue-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                      ></path>
+                    </svg>
+                    Redes Sociais / Sites ({{ candidato.sites ? candidato.sites.length : 0 }})
+                  </button>
+
+                  <!-- Botão Plano de Governo -->
+                  <a
+                    v-if="['Presidente', 'Governador'].includes(candidato.cargo)"
+                    :href="candidato.planoGovernoUrl || '#'"
+                    @click="!candidato.planoGovernoUrl ? alertarFaltaPlano($event) : null"
+                    :target="candidato.planoGovernoUrl ? '_blank' : '_self'"
+                    class="flex items-center justify-center gap-2 w-full py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-bold transition-colors"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                      ></path>
+                    </svg>
+                    Plano de Governo
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -1088,7 +1145,7 @@ const compartilharWhatsApp = (candidato) => {
     </main>
   </div>
 
-  <!-- MODAL DE BENS E RAIO-X COM DARK MODE -->
+  <!-- MODAL DE BENS, RAIO-X E REDES SOCIAIS COM DARK MODE -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
@@ -1109,7 +1166,9 @@ const compartilharWhatsApp = (candidato) => {
             {{
               tipoModal === 'bens'
                 ? 'Detalhamento de Bens Declarados'
-                : 'Raio-X da Câmara (Atuação Parlamentar)'
+                : tipoModal === 'raiox'
+                  ? 'Raio-X da Câmara (Atuação Parlamentar)'
+                  : 'Canais & Redes Sociais Oficiais'
             }}
           </span>
           <h3
@@ -1130,7 +1189,22 @@ const compartilharWhatsApp = (candidato) => {
       </header>
 
       <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar">
+        <!-- MODAL DE BENS -->
         <div v-if="tipoModal === 'bens'">
+          <div
+            class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl mb-4 border border-slate-200 dark:border-slate-800 flex flex-col gap-3"
+          >
+            <div class="flex justify-between items-center w-full">
+              <span
+                class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold"
+                >Total Declarado</span
+              >
+              <span class="text-lg text-slate-900 dark:text-white font-black">{{
+                formatarMoeda(candidatoAtivo.totalBens)
+              }}</span>
+            </div>
+          </div>
+
           <div v-if="candidatoAtivo.bens && candidatoAtivo.bens.length > 0">
             <div
               v-for="(bem, i) in candidatoAtivo.bens"
@@ -1153,6 +1227,7 @@ const compartilharWhatsApp = (candidato) => {
           </div>
         </div>
 
+        <!-- MODAL DE RAIO-X -->
         <div v-if="tipoModal === 'raiox'" aria-live="polite">
           <div v-if="raioxLoading" class="text-center py-10">
             <div
@@ -1200,7 +1275,6 @@ const compartilharWhatsApp = (candidato) => {
                 </p>
               </div>
             </div>
-
             <div>
               <h4
                 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 border-b border-slate-200 dark:border-slate-800 pb-2"
@@ -1233,6 +1307,64 @@ const compartilharWhatsApp = (candidato) => {
                 Nenhum projeto de lei recente encontrado.
               </p>
             </div>
+          </div>
+        </div>
+
+        <!-- 🔥 MODAL DE REDES SOCIAIS E SITES -->
+        <div v-if="tipoModal === 'redes'" aria-live="polite">
+          <div v-if="candidatoAtivo.sites && candidatoAtivo.sites.length > 0" class="space-y-3">
+            <a
+              v-for="(url, idx) in candidatoAtivo.sites"
+              :key="idx"
+              :href="url"
+              target="_blank"
+              class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group"
+            >
+              <div class="flex items-center gap-3 min-w-0 pr-2">
+                <div
+                  class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-800/50"
+                >
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                    ></path>
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <p
+                    class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wide"
+                  >
+                    {{
+                      url.toLowerCase().includes('instagram')
+                        ? 'Instagram Oficial'
+                        : url.toLowerCase().includes('facebook')
+                          ? 'Facebook Oficial'
+                          : url.toLowerCase().includes('twitter') ||
+                              url.toLowerCase().includes('x.com')
+                            ? 'X (Twitter) Oficial'
+                            : url.toLowerCase().includes('youtube')
+                              ? 'Canal do YouTube'
+                              : url.toLowerCase().includes('tiktok')
+                                ? 'TikTok Oficial'
+                                : 'Site Oficial / Portal'
+                    }}
+                  </p>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                    {{ url }}
+                  </p>
+                </div>
+              </div>
+              <span
+                class="text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform shrink-0"
+                >Abrir →</span
+              >
+            </a>
+          </div>
+          <div v-else class="text-center py-12 text-slate-400 dark:text-slate-500 text-sm italic">
+            Nenhuma rede social ou site cadastrado para este candidato.
           </div>
         </div>
       </div>
@@ -1361,7 +1493,7 @@ const compartilharWhatsApp = (candidato) => {
                 </p>
               </div>
 
-              <!-- 🔥 CAIXA COM A LISTA DE TODOS OS BENS COM SCROLL -->
+              <!-- CAIXA COM A LISTA DE TODOS OS BENS COM SCROLL -->
               <div
                 class="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 h-64 flex flex-col"
               >

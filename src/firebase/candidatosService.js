@@ -234,36 +234,59 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
   }
 }
 
-export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) => {
+export const atualizarStatusCandidato = async (idFirebase, idTse, uf) => {
   try {
-    const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${idTse}`
-    const respostaDetalhes = await fetch(urlDetalhes)
-    if (!respostaDetalhes.ok) throw new Error('Falha ao comunicar com o TSE')
+    const ID_ELEICAO_2026 = '20322002026'
 
-    const detalhes = await respostaDetalhes.json()
+    const res = await fetch(
+      `/api-tse/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}`,
+    )
 
-    const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
-    const novaFotoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${idTse}/${uf}`
+    if (!res.ok) throw new Error('Falha ao comunicar com o TSE')
 
-    const dadosAtualizados = {
-      situacaoCandidatura: detalhes.descricaoSituacao || 'Não informado',
-      situacaoPartido: detalhes.candidato?.situacaoCandidato || 'Não informado',
-      totalBens: detalhes.totalDeBens || 0,
-      bens: detalhes.bens || [],
-      limiteGastos1T: detalhes.gastoCampanha1T || 0,
-      limiteGastos2T: detalhes.gastoCampanha2T || 0,
-      dataDeNascimento: detalhes.dataDeNascimento || detalhes.dataNascimento || null,
-      genero: detalhes.descricaoSexo || 'Não informado',
-      corRaca: detalhes.descricaoCorRaca || 'Não informado',
-      grauInstrucao: detalhes.descricaoGrauInstrucao || 'Não informado',
-      vices: cacarVicesTSE(detalhes), // 🔥 Atualiza o vice usando a nova lógica
-      fotoUrl: novaFotoUrl,
+    const data = await res.json()
+
+    // 🕵️‍♂️ INSPETOR: Vamos printar o JSON inteiro no console do seu navegador (F12)
+    console.log('🔍 DADOS BRUTOS RETORNADOS DO TSE PARA:', data.nomeUrna || data.nome, data)
+
+    // Tentativa robusta de capturar redes sociais (independentemente de como o TSE batizou a chave)
+    const sites = data.sites || data.redesSociais || data.links || []
+
+    // Tentativa robusta de capturar o plano de governo nos arquivos/anexos
+    let planoGovernoUrl = null
+    const listaArquivos = data.arquivos || data.anexos || data.documentos || []
+
+    if (listaArquivos.length > 0) {
+      const arquivoPlano = listaArquivos.find(
+        (a) =>
+          a.codTipo === 5 ||
+          (a.nome && a.nome.toLowerCase().includes('proposta')) ||
+          (a.descricao && a.descricao.toLowerCase().includes('governo')),
+      )
+
+      if (arquivoPlano && arquivoPlano.idArquivo) {
+        planoGovernoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}/arquivo/${arquivoPlano.idArquivo}`
+      }
     }
 
-    const docRef = doc(db, 'candidatos', candidatoFirebaseId)
-    await updateDoc(docRef, dadosAtualizados)
+    const novosDados = {
+      situacaoCandidatura: data.descricaoSituacao || 'Não informado',
+      situacaoPartido: data.descricaoSituacaoPartidoColigacao || 'Não informado',
+      totalBens: data.totalDeBens || 0,
+      bens: data.bens || [],
+      limiteGastos1T: data.gastoCampanha1T || 0,
+      limiteGastos2T: data.gastoCampanha2T || 0,
+      dataDeNascimento: data.dataDeNascimento || '',
+      vices: data.vices ? data.vices.map((v) => v.nm_CANDIDATO) : [],
+      fotoUrl: `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO_2026}/${idTse}/${uf}?t=${new Date().getTime()}`,
+      sites: Array.isArray(sites) ? sites : [],
+      planoGovernoUrl: planoGovernoUrl,
+    }
 
-    return dadosAtualizados
+    const docRef = doc(db, 'candidatos', idFirebase)
+    await updateDoc(docRef, novosDados)
+
+    return novosDados
   } catch (error) {
     console.error('Erro ao atualizar dados:', error)
     throw error
