@@ -78,8 +78,9 @@ onMounted(() => {
           </RouterLink>
 
           <!-- NAVEGAÇÃO E BOTÃO DE TEMA -->
+          <!-- 🔥 CORREÇÃO: Adicionado p-1 e -m-1 para evitar o corte (clipping) do focus ring na rolagem -->
           <div
-            class="flex items-center gap-2 sm:gap-4 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 hide-scrollbar"
+            class="flex items-center gap-2 sm:gap-4 overflow-x-auto w-full sm:w-auto p-1 -m-1 hide-scrollbar"
           >
             <nav aria-label="Menu principal" class="flex items-center gap-1 sm:gap-2">
               <RouterLink
@@ -112,7 +113,7 @@ onMounted(() => {
               <RouterLink
                 to="/candidatos"
                 class="px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-blue-500"
-                active-class="bg-slate-800 text-white shadow-sm"
+                active-class="bg-slate-800 text-white"
                 :class="[
                   $route.path === '/candidatos'
                     ? ''
@@ -122,21 +123,27 @@ onMounted(() => {
                 Candidatos
               </RouterLink>
 
-              <router-link
+              <RouterLink
                 to="/cola"
-                class="hover:text-blue-500 transition-colors flex items-center gap-1"
+                class="px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-blue-500"
+                active-class="bg-slate-800 text-white"
+                :class="[
+                  $route.path === '/cola'
+                    ? ''
+                    : 'text-slate-300 hover:bg-slate-800/50 hover:text-white',
+                ]"
               >
                 Cola Eleitoral
-              </router-link>
+              </RouterLink>
 
               <RouterLink
                 to="/votacao"
-                class="px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center gap-1.5"
-                active-class="bg-purple-900/40 text-purple-300"
+                class="px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-blue-500"
+                active-class="bg-slate-800 text-white"
                 :class="[
                   $route.path === '/votacao'
                     ? ''
-                    : 'text-purple-300 hover:bg-slate-800/50 hover:text-purple-200',
+                    : 'text-slate-300 hover:bg-slate-800/50 hover:text-white',
                 ]"
               >
                 Enquete
@@ -145,7 +152,7 @@ onMounted(() => {
               <RouterLink
                 to="/acessibilidade"
                 class="px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-1.5"
-                active-class="bg-blue-900/40 text-blue-300"
+                active-class="bg-slate-800 text-white"
                 :class="[
                   $route.path === '/acessibilidade'
                     ? ''
