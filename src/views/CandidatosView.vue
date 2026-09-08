@@ -454,7 +454,7 @@ const limparComparacao = () => {
   candidatosComparacao.value = []
 }
 
-// 🔥 NOVO: ORDENA TODOS OS BENS DO MAIS CARO PARA O MAIS BARATO
+// 🔥 ORDENA TODOS OS BENS DO MAIS CARO PARA O MAIS BARATO
 const ordenarBens = (bens) => {
   if (!bens || bens.length === 0) return []
   return [...bens].sort((a, b) => b.valor - a.valor)
@@ -1385,36 +1385,7 @@ const compartilharWhatsApp = (candidato) => {
                 </p>
               </div>
             </div>
-            <div
-              class="bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/50 rounded-xl p-4"
-            >
-              <p
-                class="text-xs uppercase tracking-wider text-rose-800 dark:text-rose-400 font-bold mb-1 flex items-center gap-2"
-              >
-                <svg
-                  aria-hidden="true"
-                  class="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  ></path>
-                </svg>
-                Despesas Registradas
-              </p>
-              <p class="text-2xl font-black text-rose-900 dark:text-rose-300">
-                {{ formatarMoeda(dadosRaioX.gasto2026) }}
-              </p>
-              <p class="text-[10px] text-rose-700 dark:text-rose-500 mt-1">
-                Soma das últimas 100 notas fiscais lançadas na Cota para Exercício da Atividade
-                Parlamentar (CEAP).
-              </p>
-            </div>
+
             <div>
               <h4
                 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 border-b border-slate-200 dark:border-slate-800 pb-2"
