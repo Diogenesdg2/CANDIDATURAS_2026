@@ -246,26 +246,30 @@ export const atualizarStatusCandidato = async (idFirebase, idTse, uf) => {
 
     const data = await res.json()
 
-    // 🕵️‍♂️ INSPETOR: Vamos printar o JSON inteiro no console do seu navegador (F12)
-    console.log('🔍 DADOS BRUTOS RETORNADOS DO TSE PARA:', data.nomeUrna || data.nome, data)
-
-    // Tentativa robusta de capturar redes sociais (independentemente de como o TSE batizou a chave)
-    const sites = data.sites || data.redesSociais || data.links || []
-
-    // Tentativa robusta de capturar o plano de governo nos arquivos/anexos
     let planoGovernoUrl = null
-    const listaArquivos = data.arquivos || data.anexos || data.documentos || []
+    const listaArquivos = data.arquivos || []
 
     if (listaArquivos.length > 0) {
-      const arquivoPlano = listaArquivos.find(
-        (a) =>
-          a.codTipo === 5 ||
-          (a.nome && a.nome.toLowerCase().includes('proposta')) ||
-          (a.descricao && a.descricao.toLowerCase().includes('governo')),
-      )
+      // Procura pelo arquivo onde codTipo é '5' ou que contenha 'proposta' / 'governo' / 'plano'
+      const arquivoPlano = listaArquivos.find((a) => {
+        const nomeStr = (a.nome || a.descricao || a.titulo || '').toLowerCase()
+        return (
+          String(a.codTipo) === '5' ||
+          String(a.tipo) === '5' ||
+          nomeStr.includes('proposta') ||
+          nomeStr.includes('governo') ||
+          nomeStr.includes('plano')
+        )
+      })
 
-      if (arquivoPlano && arquivoPlano.idArquivo) {
-        planoGovernoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}/arquivo/${arquivoPlano.idArquivo}`
+      if (arquivoPlano) {
+        const idArquivo = arquivoPlano.idArquivo || arquivoPlano.id || arquivoPlano.codigo
+        if (idArquivo) {
+          // 🔥 CORREÇÃO AQUI: Utilizando a rota correta /divulga/rest/arquivo/doc/
+          planoGovernoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/doc/${idArquivo}`
+        } else if (arquivoPlano.url) {
+          planoGovernoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/doc/${arquivoPlano.url}`
+        }
       }
     }
 
@@ -279,7 +283,7 @@ export const atualizarStatusCandidato = async (idFirebase, idTse, uf) => {
       dataDeNascimento: data.dataDeNascimento || '',
       vices: data.vices ? data.vices.map((v) => v.nm_CANDIDATO) : [],
       fotoUrl: `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO_2026}/${idTse}/${uf}?t=${new Date().getTime()}`,
-      sites: Array.isArray(sites) ? sites : [],
+      sites: data.sites || [],
       planoGovernoUrl: planoGovernoUrl,
     }
 
