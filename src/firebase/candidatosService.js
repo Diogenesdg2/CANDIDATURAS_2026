@@ -65,33 +65,47 @@ export const verificarDadosExistem = async (uf, codigoCargo) => {
   }
 }
 
+// 🔥 MÁGICA ATUALIZADA: Busca todas as variáveis possíveis do TSE e evita duplicação
 const cacarVicesTSE = (detalhes) => {
   let nomesEncontrados = []
-  const extrair = (obj) => {
-    if (!obj) return
-    const nome =
-      obj.nmUrna ||
-      obj.nomeUrna ||
-      obj.nmCandidato ||
-      obj.nomeCandidato ||
-      obj.nome ||
-      obj.nmUrnaCandidato
-    if (nome) nomesEncontrados.push(nome)
+
+  // Nova lógica alinhada com o modelo em SQL
+  if (detalhes.vices && Array.isArray(detalhes.vices)) {
+    const vicesBrutos = detalhes.vices
+      .map((v) => v.nome || v.nmCandidato || v.nm_CANDIDATO || '')
+      .filter(Boolean)
+    nomesEncontrados = [...vicesBrutos]
+  } else {
+    // Fallback original melhorado
+    const extrair = (obj) => {
+      if (!obj) return
+      const nome =
+        obj.nome ||
+        obj.nmCandidato ||
+        obj.nm_CANDIDATO ||
+        obj.nmUrna ||
+        obj.nomeUrna ||
+        obj.nomeCandidato ||
+        obj.nmUrnaCandidato
+      if (nome && nome.trim() !== '') nomesEncontrados.push(nome.trim())
+    }
+
+    if (Array.isArray(detalhes.suplentes)) detalhes.suplentes.forEach(extrair)
+    if (Array.isArray(detalhes.substitutos)) detalhes.substitutos.forEach(extrair)
+    if (detalhes.viceCandidato) extrair(detalhes.viceCandidato)
+    if (detalhes.vice) {
+      if (Array.isArray(detalhes.vice)) detalhes.vice.forEach(extrair)
+      else extrair(detalhes.vice)
+    }
   }
-  if (Array.isArray(detalhes.vices)) detalhes.vices.forEach(extrair)
-  if (Array.isArray(detalhes.suplentes)) detalhes.suplentes.forEach(extrair)
-  if (Array.isArray(detalhes.substitutos)) detalhes.substitutos.forEach(extrair)
-  if (detalhes.viceCandidato) extrair(detalhes.viceCandidato)
-  if (detalhes.vice) {
-    if (Array.isArray(detalhes.vice)) detalhes.vice.forEach(extrair)
-    else extrair(detalhes.vice)
-  }
+
+  // O 'Set' garante que não haverá nomes duplicados salvos no Firebase
   return [...new Set(nomesEncontrados)]
 }
 
 export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgresso) => {
   try {
-    // 🌟 MÁGICA AQUI: Pega os IDs de quem JÁ ESTÁ no Firebase
+    // Pega os IDs de quem JÁ ESTÁ no Firebase
     const q = query(
       candidatosCollection,
       where('uf', '==', uf),
@@ -109,7 +123,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
     const dados = await resposta.json()
     const listaCandidatosTSE = dados.candidatos || []
 
-    // 🌟 Filtra a lista do TSE tirando quem já foi salvo no seu banco!
+    // Filtra a lista do TSE tirando quem já foi salvo no banco!
     const candidatosPendentes = listaCandidatosTSE.filter(
       (cand) => !idsJaSalvos.includes(String(cand.id)),
     )
@@ -158,6 +172,7 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
           corRaca = detalhes.descricaoCorRaca || 'Não informado'
           grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
 
+          // Passa pela nova função para buscar os vices de forma certeira
           listaVices = cacarVicesTSE(detalhes)
           const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
           fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
@@ -241,7 +256,7 @@ export const atualizarStatusCandidato = async (candidatoFirebaseId, idTse, uf) =
       genero: detalhes.descricaoSexo || 'Não informado',
       corRaca: detalhes.descricaoCorRaca || 'Não informado',
       grauInstrucao: detalhes.descricaoGrauInstrucao || 'Não informado',
-      vices: cacarVicesTSE(detalhes),
+      vices: cacarVicesTSE(detalhes), // 🔥 Atualiza o vice usando a nova lógica
       fotoUrl: novaFotoUrl,
     }
 
@@ -334,7 +349,6 @@ export const buscarResultadosEnquete = async () => {
 // ====================================================
 export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgresso) => {
   try {
-    // 1. Busca quem já está salvo no seu banco de dados
     const q = query(
       candidatosCollection,
       where('uf', '==', uf),
@@ -352,7 +366,6 @@ export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgre
     const total = listaLocal.length
     let atual = 0
 
-    // 2. Passa um por um atualizando só o que você pediu
     for (const cand of listaLocal) {
       atual++
       if (onProgresso) onProgresso(atual, total, cand.nomeUrna)
@@ -365,7 +378,6 @@ export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgre
         const detalhes = await resposta.json()
         let dadosAtualizados = {}
 
-        // Monta o pacote apenas com as caixinhas que você marcou na tela!
         if (opcoes.situacao) {
           dadosAtualizados.situacaoCandidatura = detalhes.descricaoSituacao || 'Não informado'
           dadosAtualizados.situacaoPartido =
@@ -382,7 +394,7 @@ export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgre
         if (opcoes.vicesEPessoais) {
           dadosAtualizados.dataDeNascimento =
             detalhes.dataDeNascimento || detalhes.dataNascimento || null
-          dadosAtualizados.vices = cacarVicesTSE(detalhes)
+          dadosAtualizados.vices = cacarVicesTSE(detalhes) // 🔥 Atualiza o vice em lote também
         }
 
         if (opcoes.foto) {
@@ -390,7 +402,6 @@ export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgre
           dadosAtualizados.fotoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.idTse}/${uf}`
         }
 
-        // Se tiver alguma coisa pra atualizar, salva no Firebase
         if (Object.keys(dadosAtualizados).length > 0) {
           const docRef = doc(db, 'candidatos', cand.idFirebase)
           await updateDoc(docRef, dadosAtualizados)
@@ -399,7 +410,6 @@ export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgre
         console.warn(`Aviso: Falha ao fazer manutenção em ${cand.nomeUrna}`, e)
       }
 
-      // Pausa rápida de 1 segundo para não tomar bloqueio (429) do TSE
       await sleep(1000)
     }
   } catch (erro) {

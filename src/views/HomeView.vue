@@ -8,6 +8,7 @@ import {
   auditarERemoverDuplicatas,
   getStatusManutencao,
   setStatusManutencao,
+  buscarResultadosEnquete, // 🔥 Importamos a função da enquete do Firebase!
 } from '../firebase/candidatosService'
 
 const router = useRouter()
@@ -31,6 +32,11 @@ const modoManutencao = ref(false)
 const progressoAtual = ref(0)
 const progressoTotal = ref(100)
 const textoStatus = ref('')
+
+// 📊 VARIÁVEIS DA ENQUETE
+const resultadosEnquete = ref([])
+const totalVotosEnquete = ref(0)
+const carregandoEnquete = ref(true)
 
 const opcoesManutencao = ref({
   situacao: true,
@@ -144,7 +150,21 @@ const checarBanco = async () => {
   verificando.value = false
 }
 
-// 🚀 O PRIMEIRO PASSO AO ABRIR O SITE É CHECAR O STATUS
+// 🔥 BUSCA OS RESULTADOS DA ENQUETE DO FIREBASE
+const carregarResultadosEnquete = async () => {
+  carregandoEnquete.value = true
+  const resposta = await buscarResultadosEnquete()
+  resultadosEnquete.value = resposta.resultados
+  totalVotosEnquete.value = resposta.totalGeral
+  carregandoEnquete.value = false
+}
+
+const calcularPorcentagem = (votos) => {
+  if (totalVotosEnquete.value === 0) return 0
+  return ((votos / totalVotosEnquete.value) * 100).toFixed(1)
+}
+
+// 🚀 O PRIMEIRO PASSO AO ABRIR O SITE É CHECAR O STATUS E CARREGAR A ENQUETE
 onMounted(async () => {
   carregandoConfig.value = true
   emManutencao.value = await getStatusManutencao()
@@ -153,6 +173,7 @@ onMounted(async () => {
   // Só carrega as verificações de banco pesado se o app estiver liberado ou for desenvolvedor
   if (!emManutencao.value || isDev) {
     checarBanco()
+    await carregarResultadosEnquete()
   }
 })
 
@@ -195,12 +216,9 @@ const iniciarImportacao = async () => {
     importando.value = false
 
     // 🌟 MENSAGEM DE SUCESSO EXIBINDO O TOTAL
-    // Usamos o progressoTotal.value porque ele armazena exatamente a quantidade que o TSE nos enviou
     alert(
       `✅ Importação concluída com sucesso!\n\nForam salvos ${progressoTotal.value} candidatos no seu banco de dados. A tela não será redirecionada automaticamente para economizar leituras no Firebase.`,
     )
-
-    // ATENÇÃO: Se havia um router.push(...) aqui, ele foi removido!
   } catch (e) {
     alert('Erro ao importar. O servidor do TSE pode ter bloqueado temporariamente.')
     importando.value = false
@@ -459,9 +477,126 @@ const avancarParaLista = () => {
         </div>
       </div>
 
+      <!-- 🌟 NOVO: SEÇÃO DE PLACAR DA ENQUETE (NO FIREBASE) -->
+      <div class="pt-8 mt-8 border-t border-slate-200 dark:border-slate-800">
+        <div class="flex items-center gap-3 mb-6">
+          <span
+            class="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-black px-3 py-1 rounded-lg uppercase tracking-widest flex items-center gap-2"
+          >
+            <span
+              class="w-2 h-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse"
+            ></span>
+            ENQUETE SIMBÓLICA
+          </span>
+          <h2 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+            Pesquisa de Intenção de Voto (Presidência)
+          </h2>
+        </div>
+
+        <div
+          v-if="carregandoEnquete"
+          class="text-center py-10 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800"
+        >
+          <div
+            class="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+          ></div>
+          <p class="text-slate-500 dark:text-slate-400 text-sm font-bold">Apurando votos...</p>
+        </div>
+
+        <div
+          v-else-if="resultadosEnquete.length === 0"
+          class="text-center py-10 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800"
+        >
+          <p class="text-slate-500 dark:text-slate-400 text-sm font-bold">
+            Nenhum voto registrado ainda. Seja o primeiro a votar!
+          </p>
+        </div>
+
+        <div
+          v-else
+          class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-sm"
+        >
+          <div class="space-y-6">
+            <div
+              v-for="(candidato, index) in resultadosEnquete.slice(0, 5)"
+              :key="candidato.id"
+              class="flex items-center gap-4"
+            >
+              <div class="relative shrink-0">
+                <img
+                  :src="candidato.fotoUrl"
+                  alt="Foto do candidato"
+                  class="w-12 h-16 sm:w-16 sm:h-20 object-cover rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
+                />
+                <div
+                  v-if="index === 0"
+                  class="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 shadow-md"
+                >
+                  1º
+                </div>
+                <div
+                  v-else
+                  class="absolute -top-2 -right-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 shadow-md"
+                >
+                  {{ index + 1 }}º
+                </div>
+              </div>
+
+              <div class="flex-grow min-w-0">
+                <div class="flex justify-between items-end mb-1">
+                  <div>
+                    <h4
+                      class="font-black text-slate-900 dark:text-white text-base sm:text-lg truncate"
+                    >
+                      {{ candidato.nomeUrna }}
+                    </h4>
+                    <p
+                      class="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase"
+                    >
+                      {{ candidato.partido }}
+                    </p>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-lg sm:text-xl font-black text-purple-700 dark:text-purple-400"
+                      >{{ calcularPorcentagem(candidato.totalVotos) }}%</span
+                    >
+                  </div>
+                </div>
+
+                <div
+                  class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 mb-1 overflow-hidden"
+                >
+                  <div
+                    class="bg-gradient-to-r from-purple-500 to-indigo-500 h-3 rounded-full transition-all duration-1000 ease-out"
+                    :style="{ width: `${calcularPorcentagem(candidato.totalVotos)}%` }"
+                  ></div>
+                </div>
+                <p class="text-[10px] text-right text-slate-400 dark:text-slate-500 font-bold">
+                  {{ candidato.totalVotos }} {{ candidato.totalVotos === 1 ? 'voto' : 'votos' }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4"
+          >
+            <p
+              class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest"
+            >
+              Total computado:
+              <span class="text-slate-900 dark:text-white">{{ totalVotosEnquete }} votos</span>
+            </p>
+            <p class="text-xs text-slate-400 dark:text-slate-500 italic">
+              Para votar, acesse a ENQUENTE na parte superior da página.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- CAIXA DE STATUS E IMPORTAÇÃO -->
       <div
-        class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-colors"
+        class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-colors mt-8"
       >
         <div v-if="verificando" class="text-center py-4 text-slate-400 dark:text-slate-500 text-sm">
           Verificando status no banco de dados...

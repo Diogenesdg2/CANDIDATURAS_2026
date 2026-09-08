@@ -1568,7 +1568,7 @@ const compartilharWhatsApp = (candidato) => {
                 <p
                   class="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-500 font-bold mb-0.5"
                 >
-                  Patrimônio Total
+                  Patrimônio Declarado
                 </p>
                 <p class="text-lg font-black text-emerald-900 dark:text-emerald-400">
                   {{ formatarMoeda(cand.totalBens) }}
