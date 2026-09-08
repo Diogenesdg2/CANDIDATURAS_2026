@@ -22,8 +22,9 @@ const tipoModal = ref('bens')
 const candidatoAtivo = ref({})
 const partidoAtivo = ref('')
 
-// Novo estado para o modal de demografia
+// Novo estado para o modal de demografia e situação
 const filtroDemografico = ref({ tipo: '', valor: '' })
+const situacaoAtiva = ref('')
 
 const abrirModal = (candidato, tipo = 'bens') => {
   candidatoAtivo.value = candidato
@@ -37,10 +38,15 @@ const abrirModalPartido = (partido) => {
   modalAberto.value = true
 }
 
-// Nova função para abrir o modal de demografia
 const abrirModalDemografia = (tipoRef, valor) => {
   filtroDemografico.value = { tipo: tipoRef, valor: valor }
   tipoModal.value = 'demografia'
+  modalAberto.value = true
+}
+
+const abrirModalSituacao = (situacao) => {
+  situacaoAtiva.value = situacao
+  tipoModal.value = 'situacao'
   modalAberto.value = true
 }
 
@@ -125,12 +131,10 @@ onMounted(async () => {
   emManutencao.value = await getStatusManutencao()
   carregandoConfig.value = false
 
-  // Se o site está em manutenção E não é o desenvolvedor local, para a execução aqui!
   if (emManutencao.value && !isDev) {
     return
   }
 
-  // Se passou no bloqueio, carrega os dados normalmente
   carregarDados()
 })
 
@@ -247,6 +251,36 @@ const demografia = computed(() => {
   }
 })
 
+const situacaoJudicial = computed(() => {
+  if (candidatos.value.length === 0) return { possuiDados: false, lista: [] }
+
+  const map = {}
+  candidatos.value.forEach((c) => {
+    const key = c.situacaoCandidatura || 'Não informado'
+    map[key] = (map[key] || 0) + 1
+  })
+
+  const total = candidatos.value.length
+  const lista = Object.keys(map)
+    .map((k) => ({
+      situacao: k,
+      total: map[k],
+      percentual: (map[k] / total) * 100,
+    }))
+    .sort((a, b) => b.total - a.total)
+
+  return { possuiDados: true, lista }
+})
+
+const getCorBarraSituacao = (situacao) => {
+  const sit = situacao.toUpperCase()
+  if (sit.includes('INDEFERIDO') || sit.includes('CASSADO') || sit.includes('CANCELADO'))
+    return 'bg-red-500'
+  if (sit.includes('DEFERIDO')) return 'bg-blue-500'
+  if (sit.includes('AGUARDANDO')) return 'bg-amber-500'
+  return 'bg-slate-500'
+}
+
 const candidatosDoPartidoSelecionado = computed(() => {
   if (tipoModal.value !== 'partido' || !partidoAtivo.value) return []
   return candidatos.value
@@ -259,6 +293,13 @@ const candidatosDemografiaSelecionada = computed(() => {
   const { tipo, valor } = filtroDemografico.value
   return candidatos.value
     .filter((c) => c[tipo] === valor)
+    .sort((a, b) => a.nomeUrna.localeCompare(b.nomeUrna))
+})
+
+const candidatosDaSituacaoSelecionada = computed(() => {
+  if (tipoModal.value !== 'situacao' || !situacaoAtiva.value) return []
+  return candidatos.value
+    .filter((c) => (c.situacaoCandidatura || 'Não informado') === situacaoAtiva.value)
     .sort((a, b) => a.nomeUrna.localeCompare(b.nomeUrna))
 })
 </script>
@@ -499,8 +540,9 @@ const candidatosDemografiaSelecionada = computed(() => {
                         ></path>
                       </svg>
                     </button>
+                    <!-- 🔥 CORREÇÃO: Aplicando toFixed e replace para não zerar decimais -->
                     <span class="font-bold text-slate-900 dark:text-slate-200"
-                      >{{ Math.round(gen.percentual) }}% ({{ gen.count }})</span
+                      >{{ gen.percentual.toFixed(1).replace('.', ',') }}% ({{ gen.count }})</span
                     >
                   </div>
                   <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
@@ -548,8 +590,9 @@ const candidatosDemografiaSelecionada = computed(() => {
                         ></path>
                       </svg>
                     </button>
+                    <!-- 🔥 CORREÇÃO: Aplicando toFixed e replace para não zerar decimais -->
                     <span class="font-bold text-slate-900 dark:text-slate-200"
-                      >{{ Math.round(raca.percentual) }}% ({{ raca.count }})</span
+                      >{{ raca.percentual.toFixed(1).replace('.', ',') }}% ({{ raca.count }})</span
                     >
                   </div>
                   <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
@@ -561,6 +604,46 @@ const candidatosDemografiaSelecionada = computed(() => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- BLOCO: SITUAÇÃO JUDICIAL (TSE) -->
+        <div
+          v-if="situacaoJudicial.possuiDados"
+          class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 transition-colors"
+        >
+          <h2
+            class="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3"
+          >
+            <span class="w-2 h-6 bg-teal-500 rounded-full inline-block"></span>
+            Situação das Candidaturas (TSE)
+          </h2>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <button
+              v-for="sit in situacaoJudicial.lista"
+              :key="sit.situacao"
+              @click="abrirModalSituacao(sit.situacao)"
+              class="flex flex-col text-left bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl transition-all group focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm"
+            >
+              <div class="flex justify-between items-start mb-2 w-full">
+                <span
+                  class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors pr-2"
+                >
+                  {{ sit.situacao }}
+                </span>
+                <span class="text-lg font-black text-slate-900 dark:text-white">{{
+                  sit.total
+                }}</span>
+              </div>
+              <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-auto">
+                <div
+                  class="h-1.5 rounded-full transition-all"
+                  :class="getCorBarraSituacao(sit.situacao)"
+                  :style="{ width: `${sit.percentual}%` }"
+                ></div>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -781,7 +864,9 @@ const candidatosDemografiaSelecionada = computed(() => {
                   ? 'Detalhamento de Bens Declarados'
                   : tipoModal === 'partido'
                     ? 'Candidatos do Partido'
-                    : 'Filtro Demográfico'
+                    : tipoModal === 'situacao'
+                      ? 'Situação da Candidatura'
+                      : 'Filtro Demográfico'
               }}
             </span>
             <h3 class="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
@@ -790,7 +875,9 @@ const candidatosDemografiaSelecionada = computed(() => {
                   ? candidatoAtivo.nomeUrna || candidatoAtivo.nome
                   : tipoModal === 'partido'
                     ? partidoAtivo
-                    : `${filtroDemografico.valor}`
+                    : tipoModal === 'situacao'
+                      ? situacaoAtiva
+                      : `${filtroDemografico.valor}`
               }}
             </h3>
           </div>
@@ -918,6 +1005,51 @@ const candidatosDemografiaSelecionada = computed(() => {
                   class="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm shrink-0"
                 >
                   {{ formatarMoeda(candidato.totalBens) }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Conteúdo da Lista de Situação Judicial -->
+          <div v-if="tipoModal === 'situacao'">
+            <div
+              class="flex items-center justify-between px-3 pb-2 mb-3 border-b border-slate-200 dark:border-slate-800"
+            >
+              <div class="flex items-center">
+                <span
+                  class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase inline-block w-[60px] text-center mr-2"
+                  >Número</span
+                >
+                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase"
+                  >Nome na Urna</span
+                >
+              </div>
+              <div
+                class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase text-right pl-2"
+              >
+                Partido
+              </div>
+            </div>
+            <div class="space-y-3">
+              <div
+                v-for="candidato in candidatosDaSituacaoSelecionada"
+                :key="candidato.id"
+                class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                <div class="flex items-center">
+                  <span
+                    class="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-2 py-1 rounded mr-2 inline-block w-[60px] text-center"
+                  >
+                    Nº {{ candidato.numero }}
+                  </span>
+                  <span class="text-sm font-bold text-slate-800 dark:text-slate-200">{{
+                    candidato.nomeUrna
+                  }}</span>
+                </div>
+                <div
+                  class="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 uppercase"
+                >
+                  {{ candidato.partido }}
                 </div>
               </div>
             </div>
