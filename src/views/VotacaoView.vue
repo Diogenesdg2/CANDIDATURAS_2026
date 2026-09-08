@@ -4,6 +4,7 @@ import {
   buscarCandidatos,
   registrarVoto,
   buscarResultadosEnquete,
+  getConfigUrna, // 🔥 Importamos a função de configuração global
 } from '../firebase/candidatosService'
 
 const carregando = ref(true)
@@ -17,21 +18,31 @@ const totalVotos = ref(0)
 const tempoRestante = ref(0) // Contagem regressiva em segundos
 let intervaloContagem = null
 
-// Tempo de bloqueio (em milissegundos). Ex: 60000 = 1 minuto
-const TEMPO_BLOQUEIO = 60000
+// 🔥 Variável para guardar a configuração dinâmica que vem do Firebase
+const configUrna = ref({ bloqueioAtivo: true, tempoMinutos: 2 })
 
 const verificarBloqueioTempo = () => {
-  const ultimaVotacao = localStorage.getItem('hora_ultimo_voto')
+  // Se o Dev desativou o bloqueio geral no painel, limpa tudo e libera!
+  if (!configUrna.value.bloqueioAtivo) {
+    localStorage.removeItem('bloqueioVotoUrna') // Usando a mesma chave da Home!
+    return false
+  }
+
+  const ultimaVotacao = localStorage.getItem('bloqueioVotoUrna')
   if (!ultimaVotacao) return false
 
+  // Converte os minutos do Firebase para milissegundos
+  const minutos = parseInt(configUrna.value.tempoMinutos) || 2
+  const TEMPO_BLOQUEIO_MS = minutos * 60 * 1000
+
   const tempoPassado = Date.now() - parseInt(ultimaVotacao)
-  if (tempoPassado < TEMPO_BLOQUEIO) {
-    tempoRestante.value = Math.ceil((TEMPO_BLOQUEIO - tempoPassado) / 1000)
+  if (tempoPassado < TEMPO_BLOQUEIO_MS) {
+    tempoRestante.value = Math.ceil((TEMPO_BLOQUEIO_MS - tempoPassado) / 1000)
     iniciarContagem()
     return true
   }
 
-  localStorage.removeItem('hora_ultimo_voto')
+  localStorage.removeItem('bloqueioVotoUrna')
   return false
 }
 
@@ -48,6 +59,10 @@ const iniciarContagem = () => {
 }
 
 onMounted(async () => {
+  // 1º passo: Baixa as configurações atuais de bloqueio da Enquete/Urna
+  configUrna.value = await getConfigUrna()
+
+  // 2º passo: Verifica se o usuário tem que esperar
   if (verificarBloqueioTempo()) {
     jaVotou.value = true
     await carregarResultados()
@@ -72,14 +87,18 @@ const votar = async (candidato) => {
   enviandoVoto.value = true
 
   const sucesso = await registrarVoto(
-    candidato.id,
+    String(candidato.id), // 🔥 Garantimos o uso do ID do Firebase igual à Urna
     candidato.nomeUrna,
     candidato.partido,
     candidato.fotoUrl,
   )
 
   if (sucesso) {
-    localStorage.setItem('hora_ultimo_voto', Date.now().toString())
+    // Só grava o bloqueio no navegador se a configuração estiver ativa no Firebase
+    if (configUrna.value.bloqueioAtivo) {
+      localStorage.setItem('bloqueioVotoUrna', Date.now().toString())
+    }
+
     verificarBloqueioTempo()
 
     jaVotou.value = true
@@ -93,7 +112,8 @@ const votar = async (candidato) => {
 
 const calcularPorcentagem = (votos) => {
   if (totalVotos.value === 0) return 0
-  return ((votos / totalVotos.value) * 100).toFixed(1)
+  // Adicionado o replace para deixar a vírgula no padrão brasileiro igual na Home
+  return ((votos / totalVotos.value) * 100).toFixed(1).replace('.', ',')
 }
 
 const formatarTempo = (segundos) => {
@@ -202,13 +222,13 @@ const formatarTempo = (segundos) => {
       </div>
 
       <div class="space-y-6 mb-10">
-        <!-- RESULTADO INDIVIDUAL CORRIGIDO -->
+        <!-- RESULTADO INDIVIDUAL -->
         <div
           v-for="(resultado, index) in resultados"
           :key="resultado.id"
           class="flex items-start gap-4"
         >
-          <!-- Lado Esquerdo: Posição e Foto (Tamanho fixo) -->
+          <!-- Lado Esquerdo: Posição e Foto -->
           <div class="flex items-center gap-3 shrink-0 mt-0.5">
             <span class="text-lg font-black text-slate-300 dark:text-slate-600 w-5 text-right"
               >{{ index + 1 }}º</span
@@ -220,7 +240,7 @@ const formatarTempo = (segundos) => {
             />
           </div>
 
-          <!-- Lado Direito: Informações, Barra e Quantidade (100% do que sobra) -->
+          <!-- Lado Direito: Informações e Barra -->
           <div class="flex-grow min-w-0">
             <div class="flex justify-between items-end mb-1">
               <h3 class="font-bold text-slate-900 dark:text-white leading-none truncate">
@@ -248,7 +268,9 @@ const formatarTempo = (segundos) => {
                       ? 'bg-blue-500 dark:bg-blue-400'
                       : 'bg-slate-400 dark:bg-slate-600'
                 "
-                :style="{ width: `${calcularPorcentagem(resultado.totalVotos)}%` }"
+                :style="{
+                  width: `${calcularPorcentagem(resultado.totalVotos).replace(',', '.')}%`,
+                }"
               ></div>
             </div>
 
@@ -259,7 +281,7 @@ const formatarTempo = (segundos) => {
         </div>
       </div>
 
-      <!-- BOTÃO DE VOTAR NOVAMENTE -->
+      <!-- BOTÃO DE VOTAR NOVAMENTE / BLOQUEIO -->
       <div
         class="bg-slate-50 dark:bg-slate-800/50 -mx-6 md:-mx-10 -mb-6 md:-mb-10 p-6 border-t border-slate-200 dark:border-slate-800 flex flex-col items-center"
       >

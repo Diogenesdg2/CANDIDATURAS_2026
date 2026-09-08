@@ -491,3 +491,30 @@ export const setStatusManutencao = async (status) => {
     return false
   }
 }
+
+// ====================================================
+// ⚙️ CONFIGURAÇÕES DA URNA (TEMPO DE VOTO)
+// ====================================================
+export const getConfigUrna = async () => {
+  try {
+    const docRef = doc(db, 'configuracoes', 'urna')
+    const docSnap = await getDoc(docRef)
+    if (docSnap.exists()) {
+      return docSnap.data()
+    }
+    // Retorna o padrão (ativo com 2 minutos) se não existir no banco ainda
+    return { bloqueioAtivo: true, tempoMinutos: 2 }
+  } catch (e) {
+    return { bloqueioAtivo: true, tempoMinutos: 2 }
+  }
+}
+
+export const setConfigUrna = async (config) => {
+  try {
+    const docRef = doc(db, 'configuracoes', 'urna')
+    await setDoc(docRef, config, { merge: true })
+    return true
+  } catch (e) {
+    return false
+  }
+}
