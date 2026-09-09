@@ -496,7 +496,7 @@ const imprimirSantinho = () => {
     <head>
       <meta charset="UTF-8">
       <title>Santinho - ${candidatoAtivo.value.nomeUrna}</title>
-      <script src="https://cdn.tailwindcss.com"><\/script>
+      <script src="https://cdn.tailwindcss.com"></script>
       <style>
         body {
           background-color: #ffffff !important;
@@ -546,7 +546,7 @@ const imprimirSantinho = () => {
         setTimeout(() => {
           window.print();
         }, 800);
-      <\/script>
+      </script>
     </body>
     </html>
   `)
@@ -977,8 +977,7 @@ const imprimirSantinho = () => {
               A IA está lendo o Plano de Governo...
             </h3>
             <p class="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
-              Isso leva de 5 a 10 segundos apenas na primeira vez. Depois, o resumo fica salvo no
-              banco!
+              Isso levar um tempinho apenas na primeira vez. Depois, o resumo fica salvo no banco!
             </p>
           </div>
 
