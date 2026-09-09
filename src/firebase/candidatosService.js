@@ -11,6 +11,7 @@ import {
   increment,
   deleteDoc,
 } from 'firebase/firestore'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { db } from './config'
 
 const candidatosCollection = collection(db, 'candidatos')
@@ -29,7 +30,6 @@ const CARGOS = {
   10: '2º Suplente',
 }
 
-// Pausa ampliada para 1.5s: Evita que o TSE bloqueie o IP da sua casa!
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export const buscarCandidatos = async (ufFiltro = null, cargoFiltro = null) => {
@@ -45,7 +45,14 @@ export const buscarCandidatos = async (ufFiltro = null, cargoFiltro = null) => {
     const snapshot = await getDocs(q)
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
   } catch (error) {
-    console.error('Erro ao buscar candidatos:', error)
+    // 👇 O Firebase avisa que a cota gratuita acabou com este código:
+    if (error.code === 'resource-exhausted' || error.code === 'quota-exceeded') {
+      alert(
+        'A cota diária gratuita de acesso ao banco de dados foi atingida. O sistema voltará ao normal amanhã cedo!',
+      )
+    } else {
+      console.error('Erro ao buscar candidatos:', error)
+    }
     return []
   }
 }
@@ -65,18 +72,14 @@ export const verificarDadosExistem = async (uf, codigoCargo) => {
   }
 }
 
-// 🔥 MÁGICA ATUALIZADA: Busca todas as variáveis possíveis do TSE e evita duplicação
 const cacarVicesTSE = (detalhes) => {
   let nomesEncontrados = []
-
-  // Nova lógica alinhada com o modelo em SQL
   if (detalhes.vices && Array.isArray(detalhes.vices)) {
     const vicesBrutos = detalhes.vices
       .map((v) => v.nome || v.nmCandidato || v.nm_CANDIDATO || '')
       .filter(Boolean)
     nomesEncontrados = [...vicesBrutos]
   } else {
-    // Fallback original melhorado
     const extrair = (obj) => {
       if (!obj) return
       const nome =
@@ -89,7 +92,6 @@ const cacarVicesTSE = (detalhes) => {
         obj.nmUrnaCandidato
       if (nome && nome.trim() !== '') nomesEncontrados.push(nome.trim())
     }
-
     if (Array.isArray(detalhes.suplentes)) detalhes.suplentes.forEach(extrair)
     if (Array.isArray(detalhes.substitutos)) detalhes.substitutos.forEach(extrair)
     if (detalhes.viceCandidato) extrair(detalhes.viceCandidato)
@@ -98,14 +100,11 @@ const cacarVicesTSE = (detalhes) => {
       else extrair(detalhes.vice)
     }
   }
-
-  // O 'Set' garante que não haverá nomes duplicados salvos no Firebase
   return [...new Set(nomesEncontrados)]
 }
 
 export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgresso) => {
   try {
-    // Pega os IDs de quem JÁ ESTÁ no Firebase
     const q = query(
       candidatosCollection,
       where('uf', '==', uf),
@@ -123,16 +122,13 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
     const dados = await resposta.json()
     const listaCandidatosTSE = dados.candidatos || []
 
-    // Filtra a lista do TSE tirando quem já foi salvo no banco!
     const candidatosPendentes = listaCandidatosTSE.filter(
       (cand) => !idsJaSalvos.includes(String(cand.id)),
     )
     const totalPendentes = candidatosPendentes.length
 
     if (totalPendentes === 0) {
-      alert(
-        `Sucesso! Todos os candidatos para ${nomeCargo} em ${uf} já estão 100% sincronizados no seu banco.`,
-      )
+      alert(`Sucesso! Todos os candidatos para ${nomeCargo} em ${uf} já estão 100% sincronizados.`)
       return
     }
 
@@ -143,7 +139,6 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
 
       let totalBensDeclarados = 0
       let listaBens = []
-      let historicoEleicoes = []
       let limiteGastos1T = 0
       let limiteGastos2T = 0
       let situacaoCand = 'Não informado'
@@ -153,8 +148,10 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
       let corRaca = 'Não informado'
       let grauInstrucao = 'Não informado'
       let listaVices = []
-
       let fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${ID_ELEICAO}/${cand.id}/${uf}`
+
+      let listaSites = []
+      let urlPlanoDeGoverno = null
 
       try {
         const urlDetalhes = `/api-tse/divulga/rest/v1/candidatura/buscar/${ANO}/${uf}/${ID_ELEICAO}/candidato/${cand.id}`
@@ -172,29 +169,34 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
           corRaca = detalhes.descricaoCorRaca || 'Não informado'
           grauInstrucao = detalhes.descricaoGrauInstrucao || 'Não informado'
 
-          // Passa pela nova função para buscar os vices de forma certeira
           listaVices = cacarVicesTSE(detalhes)
+          listaSites = detalhes.sites || []
+
+          const arquivos = detalhes.arquivos || []
+          if (arquivos.length > 0) {
+            const arquivoPlano = arquivos.find((a) => {
+              const nomeStr = (a.nome || a.descricao || a.titulo || '').toLowerCase()
+              return (
+                String(a.codTipo) === '5' ||
+                String(a.tipo) === '5' ||
+                nomeStr.includes('proposta') ||
+                nomeStr.includes('governo') ||
+                nomeStr.includes('plano')
+              )
+            })
+            if (arquivoPlano) {
+              const idArquivo = arquivoPlano.idArquivo || arquivoPlano.id || arquivoPlano.codigo
+              if (idArquivo) {
+                urlPlanoDeGoverno = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/doc/${idArquivo}`
+              }
+            }
+          }
+
           const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
-          fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}`
+          fotoOficialUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.id}/${uf}?t=${new Date().getTime()}`
         }
       } catch (e) {
         console.warn(`Aviso: Detalhes indisponíveis para ${cand.nomeUrna}`)
-      }
-
-      try {
-        const urlEleicoes = `/api-tse/divulga/rest/v1/candidato/${cand.id}/eleicoes-anteriores`
-        const respostaEleicoes = await fetch(urlEleicoes)
-        if (respostaEleicoes.ok) historicoEleicoes = await respostaEleicoes.json()
-      } catch (e) {
-        historicoEleicoes = [
-          {
-            ano: ANO,
-            cargo: nomeCargo,
-            uf: uf,
-            partido: cand.siglaPartido || 'PR',
-            numero: cand.numero,
-          },
-        ]
       }
 
       const nomePartido =
@@ -211,7 +213,6 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         uf: uf,
         totalBens: totalBensDeclarados,
         bens: listaBens,
-        eleicoesAnteriores: historicoEleicoes,
         limiteGastos1T: limiteGastos1T,
         limiteGastos2T: limiteGastos2T,
         situacaoCandidatura: situacaoCand,
@@ -222,10 +223,11 @@ export const sincronizarDadosAutomaticamente = async (uf, codigoCargo, onProgres
         grauInstrucao: grauInstrucao,
         vices: listaVices,
         fotoUrl: fotoOficialUrl,
+        sites: listaSites,
+        planoGovernoUrl: urlPlanoDeGoverno,
         ano: ANO,
       })
 
-      // Mantém a pausa anti-bloqueio!
       await sleep(1500)
     }
   } catch (erro) {
@@ -250,7 +252,6 @@ export const atualizarStatusCandidato = async (idFirebase, idTse, uf) => {
     const listaArquivos = data.arquivos || []
 
     if (listaArquivos.length > 0) {
-      // Procura pelo arquivo onde codTipo é '5' ou que contenha 'proposta' / 'governo' / 'plano'
       const arquivoPlano = listaArquivos.find((a) => {
         const nomeStr = (a.nome || a.descricao || a.titulo || '').toLowerCase()
         return (
@@ -265,7 +266,6 @@ export const atualizarStatusCandidato = async (idFirebase, idTse, uf) => {
       if (arquivoPlano) {
         const idArquivo = arquivoPlano.idArquivo || arquivoPlano.id || arquivoPlano.codigo
         if (idArquivo) {
-          // 🔥 CORREÇÃO AQUI: Utilizando a rota correta /divulga/rest/arquivo/doc/
           planoGovernoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/doc/${idArquivo}`
         } else if (arquivoPlano.url) {
           planoGovernoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/doc/${arquivoPlano.url}`
@@ -371,9 +371,6 @@ export const buscarResultadosEnquete = async () => {
   }
 }
 
-// ====================================================
-// MÓDULO DE MANUTENÇÃO GRANULAR (Apenas para Localhost)
-// ====================================================
 export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgresso) => {
   try {
     const q = query(
@@ -421,12 +418,28 @@ export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgre
         if (opcoes.vicesEPessoais) {
           dadosAtualizados.dataDeNascimento =
             detalhes.dataDeNascimento || detalhes.dataNascimento || null
-          dadosAtualizados.vices = cacarVicesTSE(detalhes) // 🔥 Atualiza o vice em lote também
+          dadosAtualizados.vices = cacarVicesTSE(detalhes)
+          dadosAtualizados.sites = detalhes.sites || []
+
+          const arquivos = detalhes.arquivos || []
+          if (arquivos.length > 0) {
+            const arquivoPlano = arquivos.find(
+              (a) =>
+                String(a.codTipo) === '5' ||
+                String(a.tipo) === '5' ||
+                (a.nome || '').toLowerCase().includes('proposta'),
+            )
+            if (arquivoPlano) {
+              const idArquivo = arquivoPlano.idArquivo || arquivoPlano.id || arquivoPlano.codigo
+              if (idArquivo)
+                dadosAtualizados.planoGovernoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/doc/${idArquivo}`
+            }
+          }
         }
 
         if (opcoes.foto) {
           const idEleicaoReal = detalhes.eleicao?.id || ID_ELEICAO
-          dadosAtualizados.fotoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.idTse}/${uf}`
+          dadosAtualizados.fotoUrl = `https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img/${idEleicaoReal}/${cand.idTse}/${uf}?t=${new Date().getTime()}`
         }
 
         if (Object.keys(dadosAtualizados).length > 0) {
@@ -444,9 +457,7 @@ export const realizarManutencaoEmLote = async (uf, codigoCargo, opcoes, onProgre
     throw erro
   }
 }
-// ====================================================
-// 🔍 AUDITORIA E REMOÇÃO DE DUPLICATAS
-// ====================================================
+
 export const auditarERemoverDuplicatas = async (uf, codigoCargo) => {
   try {
     const q = query(
@@ -468,15 +479,12 @@ export const auditarERemoverDuplicatas = async (uf, codigoCargo) => {
       const idTse = String(dados.idTse)
 
       if (mapIdsTse.has(idTse)) {
-        // Já existe um registro com esse ID do TSE! Este é a duplicata.
         duplicadosParaRemover.push(docSnap.id)
       } else {
-        // Primeiro registro encontrado, guarda a referência
         mapIdsTse.set(idTse, docSnap.id)
       }
     })
 
-    // Apaga as duplicatas encontradas do Firebase
     for (const idFirebase of duplicadosParaRemover) {
       const docRef = doc(db, 'candidatos', idFirebase)
       await deleteDoc(docRef)
@@ -491,9 +499,7 @@ export const auditarERemoverDuplicatas = async (uf, codigoCargo) => {
     throw erro
   }
 }
-// ====================================================
-// 🔒 CONTROLE DE MANUTENÇÃO GLOBAL (KILL SWITCH)
-// ====================================================
+
 export const getStatusManutencao = async () => {
   try {
     const docRef = doc(db, 'configuracoes', 'geral')
@@ -503,7 +509,6 @@ export const getStatusManutencao = async () => {
     }
     return false
   } catch (e) {
-    console.error('Erro ao ler status de manutenção', e)
     return false
   }
 }
@@ -514,14 +519,10 @@ export const setStatusManutencao = async (status) => {
     await setDoc(docRef, { emManutencao: status }, { merge: true })
     return true
   } catch (e) {
-    console.error('Erro ao alterar status de manutenção', e)
     return false
   }
 }
 
-// ====================================================
-// ⚙️ CONFIGURAÇÕES DA URNA (TEMPO DE VOTO)
-// ====================================================
 export const getConfigUrna = async () => {
   try {
     const docRef = doc(db, 'configuracoes', 'urna')
@@ -529,7 +530,6 @@ export const getConfigUrna = async () => {
     if (docSnap.exists()) {
       return docSnap.data()
     }
-    // Retorna o padrão (ativo com 2 minutos) se não existir no banco ainda
     return { bloqueioAtivo: true, tempoMinutos: 2 }
   } catch (e) {
     return { bloqueioAtivo: true, tempoMinutos: 2 }
@@ -543,5 +543,69 @@ export const setConfigUrna = async (config) => {
     return true
   } catch (e) {
     return false
+  }
+}
+
+// ====================================================
+// 🤖 GERADOR DE RESUMO DE PLANO DE GOVERNO COM IA (GEMINI)
+// ====================================================
+export const gerarResumoIA = async (candidato) => {
+  // 1. SE O RESUMO JÁ EXISTE NO BANCO, DEVOLVE INSTANTANEAMENTE (CACHE)!
+  if (candidato.resumoIA) {
+    return candidato.resumoIA
+  }
+
+  if (!candidato.planoGovernoUrl) {
+    throw new Error('Este candidato não possui Plano de Governo cadastrado no TSE.')
+  }
+
+  try {
+    // 2. Baixar o PDF passando pelo nosso Proxy para evitar bloqueio (CORS)
+    const urlProxy = candidato.planoGovernoUrl.replace(
+      'https://divulgacandcontas.tse.jus.br',
+      '/api-tse',
+    )
+    const response = await fetch(urlProxy)
+    if (!response.ok) throw new Error('Não foi possível baixar o PDF do TSE.')
+    const blob = await response.blob()
+
+    // 3. Converter o PDF para Base64 (formato que a IA entende ler)
+    const base64data = await new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result.split(',')[1])
+      reader.readAsDataURL(blob)
+    })
+
+    // 4. Inicializar a IA do Google (Gemini Flash -)
+    const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY)
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' })
+
+    // 5. O Comando (Prompt) perfeito para a IA
+    const prompt = `Você é um cientista político imparcial e neutro. Leia este plano de governo em anexo e crie um resumo executivo rápido para um eleitor.
+    Regras estritas:
+    1. Crie um breve parágrafo introdutório de no máximo 3 linhas informando a visão geral do documento.
+    2. Liste as 4 ou 5 principais propostas/pilares de forma direta e objetiva.
+    3. Retorne EXATAMENTE código HTML puro formatado com as tags <p>, <ul>, <li> e <strong>.
+    4. NÃO use formatação markdown de código (como \`\`\`html), retorne apenas o HTML cru.`
+
+    // 6. Enviar para a IA
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { data: base64data, mimeType: 'application/pdf' } },
+    ])
+
+    const resumoGeradoHtml = result.response.text()
+
+    // 7. Salvar o resumo gerado no Firebase para gerar Cache!
+    const docRef = doc(db, 'candidatos', candidato.id)
+    await updateDoc(docRef, { resumoIA: resumoGeradoHtml })
+
+    return resumoGeradoHtml
+  } catch (error) {
+    console.error('Erro na IA:', error)
+    throw new Error(
+      'A IA não conseguiu processar este arquivo. O documento pode ser muito grande, protegido ou estar corrompido no TSE.',
+      { cause: error },
+    )
   }
 }

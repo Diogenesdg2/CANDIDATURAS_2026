@@ -6,6 +6,7 @@ import {
   atualizarStatusCandidato,
   buscarRaioXCamara,
   getStatusManutencao,
+  gerarResumoIA,
 } from '../firebase/candidatosService'
 
 const route = useRoute()
@@ -59,6 +60,9 @@ const candidatoAtivo = ref({})
 const dadosRaioX = ref(null)
 const raioxLoading = ref(false)
 const deputadosAtuais = ref([])
+
+const resumoIALoading = ref(false)
+const resumoIATexto = ref('')
 
 const ufsOficiais = [
   { sigla: 'BR', nome: 'Brasil (Nacional)' },
@@ -267,6 +271,19 @@ const abrirModal = async (candidato, tipo) => {
     dadosRaioX.value = await buscarRaioXCamara(candidato.nomeUrna, candidato.uf)
     raioxLoading.value = false
   }
+
+  if (tipo === 'resumoIA') {
+    resumoIATexto.value = ''
+    resumoIALoading.value = true
+    try {
+      resumoIATexto.value = await gerarResumoIA(candidato)
+      candidatoAtivo.value.resumoIA = resumoIATexto.value
+    } catch (e) {
+      resumoIATexto.value = `<p class="text-red-500 font-bold text-center py-4">Ops! ${e.message}</p>`
+    } finally {
+      resumoIALoading.value = false
+    }
+  }
 }
 
 const candidatosComparacao = ref([])
@@ -460,7 +477,6 @@ const compartilharWhatsApp = (candidato) => {
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank')
 }
 
-// 🔥 NOVA FUNÇÃO EXCLUSIVA PARA COMPARTILHAR O SANTINHO WPP
 const compartilharSantinhoWhatsApp = (candidato) => {
   const texto = `🎴 *SANTINHO VIRTUAL*\n\nVote *${candidato.nomeUrna.toUpperCase()}* para ${candidato.cargo}!\n✅ *Número Oficial: ${candidato.numero}*\n🗳️ Partido: ${candidato.partido}\n\nConheça o candidato e baixe o Santinho Digital no Explorador Eleitoral 2026:\n🔗 https://main.d19svo3o4axtyl.amplifyapp.com`
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank')
@@ -473,7 +489,6 @@ const imprimirSantinho = () => {
 
   const cardHtml = cardElement.outerHTML
 
-  // Abre uma janela completamente em branco e isolada do sistema
   const printWindow = window.open('', '_blank')
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -483,17 +498,15 @@ const imprimirSantinho = () => {
       <title>Santinho - ${candidatoAtivo.value.nomeUrna}</title>
       <script src="https://cdn.tailwindcss.com"><\/script>
       <style>
-        /* Regras para a janela do navegador em si */
         body {
           background-color: #ffffff !important;
           display: flex;
-          justify-content: flex-start; /* Gruda no canto esquerdo e topo */
+          justify-content: flex-start;
           align-items: flex-start;
           margin: 0;
           padding: 20px;
         }
 
-        /* 📏 TRAVA O TAMANHO DO CARD EM 1/4 DE FOLHA A4 (Formato A6 Retrato) */
         #santinho-card {
           width: 10cm !important;
           height: 14.5cm !important;
@@ -503,27 +516,24 @@ const imprimirSantinho = () => {
           flex-direction: column !important;
           justify-content: space-between !important;
           border: 4px solid #fbbf24 !important;
-          background-color: #0f172a !important; /* Mantém o fundo azul escuro do card */
+          background-color: #0f172a !important;
           box-sizing: border-box !important;
           border-radius: 1.5rem !important;
         }
 
-        /* Protege as fotos de distorções na hora de puxar a impressão */
         #santinho-card img {
           object-fit: cover !important;
         }
 
-        /* Regras vitais exclusivas pro momento da Impressão / Geração do PDF */
         @media print {
           @page {
             margin: 1cm;
-            size: portrait; /* Força o papel a ficar em pé na impressora */
+            size: portrait;
           }
           body {
             padding: 0;
           }
           * {
-            /* Manda a impressora respeitar as cores escuras do fundo do card */
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -533,7 +543,6 @@ const imprimirSantinho = () => {
     <body>
       ${cardHtml}
       <script>
-        // Aguarda meio segundo pro CDN do Tailwind carregar as cores e as imagens entrarem na RAM
         setTimeout(() => {
           window.print();
         }, 800);
@@ -764,26 +773,53 @@ const imprimirSantinho = () => {
                   • {{ candidato.partido }}
                 </p>
 
-                <!-- BOTÕES DE REDES E PLANO DE GOVERNO -->
+                <!-- 🔥 BOTÕES DE REDES E PLANO (ATUALIZADO COM CAIXA) -->
                 <div
-                  class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2"
+                  class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3"
                 >
                   <button
                     @click="abrirModal(candidato, 'redes')"
-                    class="flex items-center justify-center gap-2 w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold transition-colors"
+                    class="flex items-center justify-center gap-2 w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold transition-colors shadow-sm"
                   >
                     🌐 Redes Sociais / Sites ({{ candidato.sites ? candidato.sites.length : 0 }})
                   </button>
 
-                  <a
+                  <!-- NOVO CONTAINER: PLANO DE GOVERNO -->
+                  <div
                     v-if="['Presidente', 'Governador'].includes(candidato.cargo)"
-                    :href="candidato.planoGovernoUrl || '#'"
-                    @click="!candidato.planoGovernoUrl ? alertarFaltaPlano($event) : null"
-                    :target="candidato.planoGovernoUrl ? '_blank' : '_self'"
-                    class="flex items-center justify-center gap-2 w-full py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-bold transition-colors"
+                    class="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 shadow-sm"
                   >
-                    📄 Plano de Governo
-                  </a>
+                    <p
+                      class="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-widest text-center mb-2.5"
+                    >
+                      Plano de Governo
+                    </p>
+                    <div class="flex items-center gap-2 w-full">
+                      <!-- Botão PDF Tradicional -->
+                      <a
+                        :href="candidato.planoGovernoUrl || '#'"
+                        @click="!candidato.planoGovernoUrl ? alertarFaltaPlano($event) : null"
+                        :target="candidato.planoGovernoUrl ? '_blank' : '_self'"
+                        class="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-950 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold transition-colors truncate shadow-sm"
+                      >
+                        📄 PDF Completo
+                      </a>
+
+                      <!-- Botão IA (Ouro do App) -->
+                      <button
+                        @click="abrirModal(candidato, 'resumoIA')"
+                        :disabled="!candidato.planoGovernoUrl"
+                        :class="
+                          candidato.planoGovernoUrl
+                            ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 text-white border-transparent'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-400 opacity-60 cursor-not-allowed border-transparent'
+                        "
+                        class="flex-1 flex items-center justify-center gap-1.5 py-2 border rounded-lg text-xs font-black transition-all shadow-sm truncate"
+                      >
+                        ✨ Resumo IA
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -809,7 +845,7 @@ const imprimirSantinho = () => {
             </div>
           </div>
 
-          <!-- 🔥 BARRA DE AÇÕES INFERIOR: ORGANIZADA EM 2 LINHAS PERFEITAS -->
+          <!-- BARRA DE AÇÕES INFERIOR: ORGANIZADA EM 2 LINHAS PERFEITAS -->
           <div
             class="bg-slate-50 dark:bg-slate-800/30 p-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2.5"
           >
@@ -884,7 +920,7 @@ const imprimirSantinho = () => {
     </main>
   </div>
 
-  <!-- MODAL PRINCIPAL (BENS, RAIO-X, REDES E 🔥 SANTINHO VIRTUAL) -->
+  <!-- MODAL PRINCIPAL (BENS, RAIO-X, REDES, SANTINHO E 🔥 RESUMO IA) -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
@@ -903,7 +939,9 @@ const imprimirSantinho = () => {
                 ? 'Raio-X Câmara'
                 : tipoModal === 'redes'
                   ? 'Redes Sociais'
-                  : '🎴 Santinho Virtual'
+                  : tipoModal === 'resumoIA'
+                    ? '✨ Resumo Inteligente do Plano'
+                    : '🎴 Santinho Virtual'
           }}
         </span>
         <button
@@ -915,8 +953,59 @@ const imprimirSantinho = () => {
       </header>
 
       <div class="p-6">
-        <!-- 🔥 MODAL: SANTINHO VIRTUAL ESTILIZADO -->
-        <div v-if="tipoModal === 'santinho'" class="flex flex-col items-center">
+        <!-- 🔥 MODAL: RESUMO COM IA -->
+        <div v-if="tipoModal === 'resumoIA'" class="relative min-h-[300px] print-hidden">
+          <!-- Loading da IA -->
+          <div
+            v-if="resumoIALoading"
+            class="flex flex-col items-center justify-center py-12 text-center animate-pulse"
+          >
+            <div
+              class="w-16 h-16 bg-gradient-to-tr from-fuchsia-500 to-indigo-500 rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30 mb-6"
+            >
+              <svg class="w-8 h-8 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                <path
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"
+                ></path>
+              </svg>
+            </div>
+            <h3 class="text-lg font-black text-slate-900 dark:text-white mb-2">
+              A IA está lendo o Plano de Governo...
+            </h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
+              Isso leva de 5 a 10 segundos apenas na primeira vez. Depois, o resumo fica salvo no
+              banco!
+            </p>
+          </div>
+
+          <!-- Resultado Gerado -->
+          <div v-else class="animate-fade-in">
+            <div
+              class="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/50 rounded-xl p-4 mb-4 flex gap-3 items-center"
+            >
+              <span class="text-3xl">🤖</span>
+              <p
+                class="text-[11px] text-indigo-700 dark:text-indigo-400 font-semibold leading-relaxed"
+              >
+                Este resumo foi extraído automaticamente do plano oficial enviado ao TSE. A
+                Inteligência Artificial (Google Gemini) leu o documento completo e destacou os
+                pilares principais.
+              </p>
+            </div>
+
+            <div
+              class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed space-y-3 prose prose-sm dark:prose-invert prose-p:mb-2 prose-ul:list-disc prose-ul:pl-4 prose-li:mb-1 prose-strong:text-indigo-600 dark:prose-strong:text-indigo-400"
+              v-html="resumoIATexto"
+            ></div>
+          </div>
+        </div>
+
+        <!-- MODAL: SANTINHO VIRTUAL ESTILIZADO -->
+        <div v-else-if="tipoModal === 'santinho'" class="flex flex-col items-center">
           <div
             id="santinho-card"
             class="w-full bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 border-4 border-amber-400 shadow-2xl relative overflow-hidden text-center"
