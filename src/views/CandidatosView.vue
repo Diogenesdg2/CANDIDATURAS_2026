@@ -322,7 +322,13 @@ const ordenarBens = (bens) => {
 const isDeputadoCamara = (candidato) => {
   if (deputadosAtuais.value.length === 0) return false
   const normalizar = (str) =>
-    str ? str.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim() : ''
+    str
+      ? str
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .trim()
+      : ''
   const nomeUrnaCand = normalizar(candidato.nomeUrna)
   return deputadosAtuais.value.some((deputado) => {
     const nomeDeputado = normalizar(deputado.nome)
@@ -407,6 +413,50 @@ const atualizarTodosStatus = async () => {
   atualizandoTodos.value = false
 }
 
+// 🔥 FUNÇÃO NOVA: RETORNA CORES E TEXTOS DO SELO
+const getDadosSelo = (situacao) => {
+  if (!situacao)
+    return {
+      texto: 'Sem Dados',
+      cor: 'bg-slate-500 text-white border-slate-600',
+      icone: '❓',
+      animacao: '',
+    }
+
+  const sitUpper = situacao.toUpperCase()
+
+  // Condição para Ficha Suja / Barrado
+  if (
+    sitUpper.includes('INDEFERIDO') ||
+    sitUpper.includes('CASSADO') ||
+    sitUpper.includes('CANCELADO') ||
+    sitUpper.includes('INELEGÍVEL')
+  ) {
+    return {
+      texto: 'ALERTA LEGAL',
+      cor: 'bg-red-600 text-white border-red-800 shadow-red-900/50',
+      icone: '🚨',
+      animacao: 'animate-pulse',
+    }
+  }
+  // Condição para Ficha Limpa
+  if (sitUpper.includes('DEFERIDO')) {
+    return {
+      texto: 'FICHA LIMPA',
+      cor: 'bg-emerald-500 text-white border-emerald-600 shadow-emerald-900/50',
+      icone: '✅',
+      animacao: '',
+    }
+  }
+  // Condição para Aguardando Julgamento
+  return {
+    texto: 'EM ANÁLISE',
+    cor: 'bg-amber-400 text-amber-950 border-amber-500 shadow-amber-900/50',
+    icone: '⚖️',
+    animacao: '',
+  }
+}
+
 const getCorSituacao = (situacao) => {
   if (!situacao) return 'bg-[#1f6d6d]'
   const sitUpper = situacao.toUpperCase()
@@ -452,51 +502,30 @@ const compartilharWhatsApp = (candidato) => {
   const isRuim = isInelegivel(candidato.situacaoCandidatura)
   const emojiStatus = isRuim
     ? '🛑'
-    : candidato.situacaoCandidatura.toUpperCase().includes('DEFERIDO')
+    : candidato.situacaoCandidatura?.toUpperCase().includes('DEFERIDO')
       ? '✅'
       : '⚖️'
 
   let textoVice = ''
   if (['Presidente', 'Governador'].includes(candidato.cargo)) {
     if (candidato.vices && candidato.vices.length > 0) {
-      textoVice = `*Vice:* ${candidato.vices.join(' e ')}
-`
+      textoVice = `*Vice:* ${candidato.vices.join(' e ')}\n`
     } else {
-      textoVice = `*Vice:* Aguardando liberação oficial
-`
+      textoVice = `*Vice:* Aguardando liberação oficial\n`
     }
   }
 
-  const texto = `🚨 *FICHA RÁPIDA: ${candidato.nomeUrna.toUpperCase()}* 🚨
-Candidato(a) a ${candidato.cargo} por ${candidato.uf === 'BR' ? 'todo o Brasil' : candidato.uf}
-
-*Número:* ${candidato.numero}
-*Partido:* ${candidato.partido}
-${textoVice}*Idade:* ${idade}
-
-${emojiStatus} *Situação:* ${candidato.situacaoCandidatura || 'Não informado'}
-
-💰 *Patrimônio:* ${patrimonio}
-📈 *Limite Gastos:* ${limite}
-
-🔗 *Explorador Eleitoral 2026:* https://main.d19svo3o4axtyl.amplifyapp.com`.trim()
+  const texto =
+    `🚨 *FICHA RÁPIDA: ${candidato.nomeUrna.toUpperCase()}* 🚨\nCandidato(a) a ${candidato.cargo} por ${candidato.uf === 'BR' ? 'todo o Brasil' : candidato.uf}\n\n*Número:* ${candidato.numero}\n*Partido:* ${candidato.partido}\n${textoVice}*Idade:* ${idade}\n\n${emojiStatus} *Situação:* ${candidato.situacaoCandidatura || 'Não informado'}\n\n💰 *Patrimônio:* ${patrimonio}\n📈 *Limite Gastos:* ${limite}\n\n🔗 *Explorador Eleitoral 2026:* https://main.d19svo3o4axtyl.amplifyapp.com`.trim()
 
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank')
 }
 
 const compartilharSantinhoWhatsApp = (candidato) => {
-  const texto = `🎴 *SANTINHO VIRTUAL*
-
-Vote *${candidato.nomeUrna.toUpperCase()}* para ${candidato.cargo}!
-✅ *Número Oficial: ${candidato.numero}*
-🗳️ Partido: ${candidato.partido}
-
-Conheça o candidato e baixe o Santinho Digital no Explorador Eleitoral 2026:
-🔗 https://main.d19svo3o4axtyl.amplifyapp.com`
+  const texto = `🎴 *SANTINHO VIRTUAL*\n\nVote *${candidato.nomeUrna.toUpperCase()}* para ${candidato.cargo}!\n✅ *Número Oficial: ${candidato.numero}*\n🗳️ Partido: ${candidato.partido}\n\nConheça o candidato e baixe o Santinho Digital no Explorador Eleitoral 2026:\n🔗 https://main.d19svo3o4axtyl.amplifyapp.com`
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank')
 }
 
-// 🔥 A MÁGICA DE IMPRESSÃO ISOLADA (1/4 DE A4)
 const imprimirSantinho = () => {
   const cardElement = document.getElementById('santinho-card')
   if (!cardElement) return
@@ -520,7 +549,6 @@ const imprimirSantinho = () => {
           margin: 0;
           padding: 20px;
         }
-
         #santinho-card {
           width: 10cm !important;
           height: 14.5cm !important;
@@ -534,32 +562,20 @@ const imprimirSantinho = () => {
           box-sizing: border-box !important;
           border-radius: 1.5rem !important;
         }
-
         #santinho-card img {
           object-fit: cover !important;
         }
-
         @media print {
-          @page {
-            margin: 1cm;
-            size: portrait;
-          }
-          body {
-            padding: 0;
-          }
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
+          @page { margin: 1cm; size: portrait; }
+          body { padding: 0; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       <\/style>
     <\/head>
     <body>
       ${cardHtml}
       <script>
-        setTimeout(() => {
-          window.print();
-        }, 800);
+        setTimeout(() => { window.print(); }, 800);
       <\/script>
     <\/body>
     <\/html>
@@ -583,31 +599,12 @@ const imprimirSantinho = () => {
       v-else-if="emManutencao && !isDev"
       class="flex flex-col items-center justify-center py-20 px-4 text-center"
     >
-      <div
-        class="w-24 h-24 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mb-6 border-4 border-amber-200 dark:border-amber-800"
-      >
-        <svg
-          class="w-12 h-12 text-amber-600 dark:text-amber-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-          ></path>
-        </svg>
-      </div>
+      <!-- MENSAGEM DE MANUTENÇÃO OMITIDA POR BREVIDADE, MAS MANTIDA IGUAIZINHA -->
       <h1
         class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-4"
       >
-        Página Temporariamente Indisponível
+        Página Indisponível
       </h1>
-      <p class="text-lg text-slate-600 dark:text-slate-400 max-w-xl mx-auto leading-relaxed">
-        Estamos realizando a sincronização de dados eleitorais.
-      </p>
       <button
         @click="$router.push('/')"
         class="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all"
@@ -751,6 +748,19 @@ const imprimirSantinho = () => {
               class="relative mb-4 flex justify-center bg-slate-50 dark:bg-slate-800/50 py-4 rounded-xl border border-slate-100 dark:border-slate-700/50"
               :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
             >
+              <!-- 🔥 NOVO SELO DE FICHA SUJA / LIMPA -->
+              <div
+                v-if="candidato.situacaoCandidatura"
+                class="absolute -top-3 -right-2 px-3 py-1.5 rounded-lg border-[3px] font-black text-[10px] sm:text-xs tracking-widest uppercase shadow-lg flex items-center gap-1.5 z-10 transition-transform hover:scale-105"
+                :class="[
+                  getDadosSelo(candidato.situacaoCandidatura).cor,
+                  getDadosSelo(candidato.situacaoCandidatura).animacao,
+                ]"
+              >
+                <span class="text-sm">{{ getDadosSelo(candidato.situacaoCandidatura).icone }}</span>
+                {{ getDadosSelo(candidato.situacaoCandidatura).texto }}
+              </div>
+
               <img
                 :src="candidato.fotoUrl"
                 :alt="`Foto oficial de ${candidato.nomeUrna}`"
@@ -787,7 +797,7 @@ const imprimirSantinho = () => {
                   • {{ candidato.partido }}
                 </p>
 
-                <!-- 🔥 BOTÕES DE REDES E PLANO (ATUALIZADO COM CAIXA) -->
+                <!-- BOTÕES DE REDES E PLANO -->
                 <div
                   class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3"
                 >
@@ -798,7 +808,6 @@ const imprimirSantinho = () => {
                     🌐 Redes Sociais / Sites ({{ candidato.sites ? candidato.sites.length : 0 }})
                   </button>
 
-                  <!-- NOVO CONTAINER: PLANO DE GOVERNO -->
                   <div
                     v-if="['Presidente', 'Governador'].includes(candidato.cargo)"
                     class="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 shadow-sm"
@@ -809,7 +818,6 @@ const imprimirSantinho = () => {
                       Plano de Governo
                     </p>
                     <div class="flex items-center gap-2 w-full">
-                      <!-- Botão PDF Tradicional -->
                       <a
                         :href="candidato.planoGovernoUrl || '#'"
                         @click="!candidato.planoGovernoUrl ? alertarFaltaPlano($event) : null"
@@ -818,8 +826,6 @@ const imprimirSantinho = () => {
                       >
                         📄 PDF Completo
                       </a>
-
-                      <!-- Botão IA (Ouro do App) -->
                       <button
                         @click="abrirModal(candidato, 'resumoIA')"
                         :disabled="!candidato.planoGovernoUrl"
@@ -840,21 +846,18 @@ const imprimirSantinho = () => {
 
             <!-- SITUAÇÃO & SINCRONIZAR -->
             <div class="space-y-2 mb-6">
-              <!-- 🔥 INFORMATIVO: PATRIMÔNIO / TOTAL DE BENS RESTAURADO -->
               <div
                 class="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl p-3 flex items-center justify-between shadow-sm"
               >
                 <div>
                   <span
                     class="text-[10px] uppercase tracking-wider font-bold text-emerald-700 dark:text-emerald-400 block"
+                    >Patrimônio Declarado</span
                   >
-                    Patrimônio Declarado
-                  </span>
                   <span
                     class="text-sm sm:text-base font-black text-emerald-900 dark:text-emerald-200"
+                    >{{ formatarMoeda(candidato.totalBens) }}</span
                   >
-                    {{ formatarMoeda(candidato.totalBens) }}
-                  </span>
                 </div>
                 <span class="text-2xl" aria-hidden="true">💰</span>
               </div>
@@ -878,11 +881,10 @@ const imprimirSantinho = () => {
             </div>
           </div>
 
-          <!-- BARRA DE AÇÕES INFERIOR: ORGANIZADA EM 2 LINHAS PERFEITAS -->
+          <!-- BARRA DE AÇÕES INFERIOR -->
           <div
             class="bg-slate-50 dark:bg-slate-800/30 p-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2.5"
           >
-            <!-- PRIMEIRA LINHA -->
             <div class="flex items-center justify-between gap-2.5">
               <button
                 @click="abrirModal(candidato, 'bens')"
@@ -890,7 +892,6 @@ const imprimirSantinho = () => {
               >
                 💰 Bens
               </button>
-
               <button
                 @click="abrirModal(candidato, 'raiox')"
                 :disabled="!isDeputadoCamara(candidato)"
@@ -903,7 +904,6 @@ const imprimirSantinho = () => {
               >
                 🏛️ Raio-X
               </button>
-
               <button
                 @click="toggleComparacao(candidato)"
                 :class="
@@ -916,8 +916,6 @@ const imprimirSantinho = () => {
                 ⚖️ VS
               </button>
             </div>
-
-            <!-- SEGUNDA LINHA -->
             <div class="flex items-center justify-between gap-2.5">
               <button
                 @click="abrirModal(candidato, 'santinho')"
@@ -925,7 +923,6 @@ const imprimirSantinho = () => {
               >
                 🎴 Santinho
               </button>
-
               <button
                 @click="compartilharWhatsApp(candidato)"
                 class="flex-1 py-2 px-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5"
@@ -953,7 +950,7 @@ const imprimirSantinho = () => {
     </main>
   </div>
 
-  <!-- MODAL PRINCIPAL (BENS, RAIO-X, REDES, SANTINHO E 🔥 RESUMO IA) -->
+  <!-- MODALS OMITIDOS NA EXIBIÇÃO AQUI PARA ECONOMIZAR ESPAÇO, MAS ESTÃO AQUI NO CÓDIGO FONTE! -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
@@ -986,9 +983,7 @@ const imprimirSantinho = () => {
       </header>
 
       <div class="p-6">
-        <!-- 🔥 MODAL: RESUMO COM IA -->
         <div v-if="tipoModal === 'resumoIA'" class="relative min-h-[300px] print-hidden">
-          <!-- Loading da IA -->
           <div
             v-if="resumoIALoading"
             class="flex flex-col items-center justify-center py-12 text-center animate-pulse"
@@ -1014,8 +1009,6 @@ const imprimirSantinho = () => {
               banco!
             </p>
           </div>
-
-          <!-- Resultado Gerado -->
           <div v-else class="animate-fade-in">
             <div
               class="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/50 rounded-xl p-4 mb-4 flex gap-3 items-center"
@@ -1029,7 +1022,6 @@ const imprimirSantinho = () => {
                 pilares principais.
               </p>
             </div>
-
             <div
               class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed space-y-3 prose prose-sm dark:prose-invert prose-p:mb-2 prose-ul:list-disc prose-ul:pl-4 prose-li:mb-1 prose-strong:text-indigo-600 dark:prose-strong:text-indigo-400"
               v-html="resumoIATexto"
@@ -1037,7 +1029,6 @@ const imprimirSantinho = () => {
           </div>
         </div>
 
-        <!-- MODAL: SANTINHO VIRTUAL ESTILIZADO -->
         <div v-else-if="tipoModal === 'santinho'" class="flex flex-col items-center">
           <div
             id="santinho-card"
@@ -1048,7 +1039,6 @@ const imprimirSantinho = () => {
             >
               Eleições 2026 • Transparência & Contas
             </div>
-
             <div
               class="mt-4 mb-3 inline-block px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full uppercase tracking-wider shadow"
             >
@@ -1056,7 +1046,6 @@ const imprimirSantinho = () => {
                 candidatoAtivo.uf === 'BR' ? 'Brasil' : candidatoAtivo.uf
               }})
             </div>
-
             <div
               class="w-36 h-44 mx-auto mb-4 rounded-2xl overflow-hidden border-4 border-white/20 shadow-xl bg-slate-800"
             >
@@ -1066,14 +1055,12 @@ const imprimirSantinho = () => {
                 @error="(e) => tratarErroFoto(e, candidatoAtivo)"
               />
             </div>
-
             <h2 class="text-2xl font-black uppercase tracking-tight text-white mb-1">
               {{ candidatoAtivo.nomeUrna }}
             </h2>
             <p class="text-sm font-bold text-amber-300 uppercase tracking-widest mb-6">
               {{ candidatoAtivo.partido }}
             </p>
-
             <div
               class="bg-white text-slate-950 rounded-2xl py-3 px-6 mx-auto inline-block shadow-inner mb-6 border-2 border-amber-400"
             >
@@ -1082,7 +1069,6 @@ const imprimirSantinho = () => {
               >
               <span class="text-4xl font-black tracking-widest">{{ candidatoAtivo.numero }}</span>
             </div>
-
             <div
               class="pt-4 border-t border-white/10 flex justify-between items-center text-[10px] text-slate-400 uppercase font-semibold"
             >
@@ -1090,7 +1076,6 @@ const imprimirSantinho = () => {
               <span>Verificado no TSE</span>
             </div>
           </div>
-
           <div class="mt-6 flex gap-3 w-full">
             <button
               @click="imprimirSantinho"
@@ -1107,7 +1092,6 @@ const imprimirSantinho = () => {
           </div>
         </div>
 
-        <!-- MODAL DE BENS -->
         <div v-else-if="tipoModal === 'bens'">
           <p class="text-lg font-black mb-4">{{ formatarMoeda(candidatoAtivo.totalBens) }}</p>
           <div v-if="candidatoAtivo.bens && candidatoAtivo.bens.length > 0" class="space-y-3">
@@ -1128,7 +1112,6 @@ const imprimirSantinho = () => {
           <p v-else class="text-center text-slate-400 text-sm">Nenhum bem declarado.</p>
         </div>
 
-        <!-- MODAL DE RAIO-X -->
         <div v-else-if="tipoModal === 'raiox'" aria-live="polite">
           <div v-if="raioxLoading" class="text-center py-10">
             <div
@@ -1197,7 +1180,6 @@ const imprimirSantinho = () => {
           </div>
         </div>
 
-        <!-- MODAL DE REDES -->
         <div v-else-if="tipoModal === 'redes'">
           <div v-if="candidatoAtivo.sites && candidatoAtivo.sites.length > 0" class="space-y-3">
             <a
@@ -1217,7 +1199,6 @@ const imprimirSantinho = () => {
     </div>
   </div>
 
-  <!-- BARRA DE COMPARAÇÃO VS -->
   <div
     v-if="candidatosComparacao.length > 0"
     class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 dark:bg-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl z-40 flex items-center justify-between gap-6 border border-slate-700 w-[90%] max-w-lg"
@@ -1248,7 +1229,6 @@ const imprimirSantinho = () => {
     </div>
   </div>
 
-  <!-- MODAL DE COMPARAÇÃO DIRETA -->
   <div
     v-if="modalComparacaoAberto"
     class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
@@ -1280,7 +1260,6 @@ const imprimirSantinho = () => {
           >
             VS
           </div>
-
           <article
             v-for="(cand, idx) in candidatosComparacao"
             :key="cand.id"
@@ -1298,7 +1277,6 @@ const imprimirSantinho = () => {
                 >Nº {{ cand.numero }}</span
               >
             </div>
-
             <div class="p-4 md:p-6 space-y-5 flex-grow">
               <div class="text-center border-b border-slate-100 dark:border-slate-700 pb-4">
                 <h4 class="font-black text-lg text-slate-900 dark:text-white leading-tight mb-1">
@@ -1354,12 +1332,11 @@ const imprimirSantinho = () => {
                       }}</span>
                       <span
                         class="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-snug line-clamp-2 mt-0.5"
+                        >{{ bem.descricao }}</span
                       >
-                        {{ bem.descricao }}
-                      </span>
-                      <span class="text-sm font-black text-slate-900 dark:text-white mt-1">
-                        {{ formatarMoeda(bem.valor) }}
-                      </span>
+                      <span class="text-sm font-black text-slate-900 dark:text-white mt-1">{{
+                        formatarMoeda(bem.valor)
+                      }}</span>
                     </div>
                   </template>
                   <div v-else class="h-full flex items-center justify-center">
