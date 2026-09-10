@@ -413,7 +413,7 @@ const atualizarTodosStatus = async () => {
   atualizandoTodos.value = false
 }
 
-// 🔥 FUNÇÃO NOVA: RETORNA CORES E TEXTOS DO SELO
+// 🔥 FUNÇÃO: RETORNA CORES E TEXTOS DO SELO
 const getDadosSelo = (situacao) => {
   if (!situacao)
     return {
@@ -621,12 +621,31 @@ const imprimirSantinho = () => {
       v-else-if="emManutencao && !isDev"
       class="flex flex-col items-center justify-center py-20 px-4 text-center"
     >
-      <!-- MENSAGEM DE MANUTENÇÃO OMITIDA POR BREVIDADE, MAS MANTIDA IGUAIZINHA -->
+      <div
+        class="w-24 h-24 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mb-6 border-4 border-amber-200 dark:border-amber-800"
+      >
+        <svg
+          class="w-12 h-12 text-amber-600 dark:text-amber-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          ></path>
+        </svg>
+      </div>
       <h1
         class="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-4"
       >
-        Página Indisponível
+        Página Temporariamente Indisponível
       </h1>
+      <p class="text-lg text-slate-600 dark:text-slate-400 max-w-xl mx-auto leading-relaxed">
+        Estamos realizando a sincronização de dados eleitorais.
+      </p>
       <button
         @click="$router.push('/')"
         class="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all"
@@ -768,7 +787,6 @@ const imprimirSantinho = () => {
           <div class="p-6">
             <div
               class="relative mb-4 flex justify-center bg-slate-50 dark:bg-slate-800/50 py-4 rounded-xl border border-slate-100 dark:border-slate-700/50"
-              :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
             >
               <!-- 🔥 NOVO SELO DE FICHA SUJA / LIMPA -->
               <div
@@ -783,10 +801,12 @@ const imprimirSantinho = () => {
                 {{ getDadosSelo(candidato.situacaoCandidatura).texto }}
               </div>
 
+              <!-- 🔥 FOTO DO CANDIDATO COM EFEITO CINZA CASO ESTEJA INELEGÍVEL -->
               <img
                 :src="candidato.fotoUrl"
                 :alt="`Foto oficial de ${candidato.nomeUrna}`"
-                class="w-32 h-40 object-cover border border-slate-300 dark:border-slate-600 shadow-sm rounded bg-slate-200 dark:bg-slate-700"
+                class="w-32 h-40 object-cover border border-slate-300 dark:border-slate-600 shadow-sm rounded bg-slate-200 dark:bg-slate-700 transition-all"
+                :class="{ 'grayscale opacity-75': isInelegivel(candidato.situacaoCandidatura) }"
                 @error="(e) => tratarErroFoto(e, candidato)"
               />
             </div>
@@ -972,7 +992,6 @@ const imprimirSantinho = () => {
     </main>
   </div>
 
-  <!-- MODALS OMITIDOS NA EXIBIÇÃO AQUI PARA ECONOMIZAR ESPAÇO, MAS ESTÃO AQUI NO CÓDIGO FONTE! -->
   <div
     v-if="modalAberto"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
@@ -1039,11 +1058,12 @@ const imprimirSantinho = () => {
               <p
                 class="text-[11px] text-indigo-700 dark:text-indigo-400 font-semibold leading-relaxed"
               >
-                Este resumo foi extraído automatically do plano oficial enviado ao TSE. A
+                Este resumo foi extraído automaticamente do plano oficial enviado ao TSE. A
                 Inteligência Artificial (Google Gemini) leu o documento completo e destacou os
                 pilares principais.
               </p>
             </div>
+            <!-- 🔥 TEXTO DA IA JUSTIFICADO -->
             <div
               class="text-justify text-slate-700 dark:text-slate-300 text-sm leading-relaxed space-y-3 prose prose-sm dark:prose-invert prose-p:mb-2 prose-ul:list-disc prose-ul:pl-4 prose-li:mb-1 prose-strong:text-indigo-600 dark:prose-strong:text-indigo-400"
               v-html="resumoIATexto"
