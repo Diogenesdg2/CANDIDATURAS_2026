@@ -526,6 +526,7 @@ const compartilharSantinhoWhatsApp = (candidato) => {
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank')
 }
 
+// 🔥 A MÁGICA DE IMPRESSÃO ISOLADA (BLINDADA CONTRA O VITE/PRETTIER)
 const imprimirSantinho = () => {
   const cardElement = document.getElementById('santinho-card')
   if (!cardElement) return
@@ -533,14 +534,22 @@ const imprimirSantinho = () => {
   const cardHtml = cardElement.outerHTML
 
   const printWindow = window.open('', '_blank')
+
+  // 🛡️ Truque Ninja: Separamos as tags para o Vue/Prettier nunca lerem como HTML
+  const headCdn = '<scr' + 'ipt src="https://cdn.tailwindcss.com"></scr' + 'ipt>'
+  const styleOpen = '<sty' + 'le>'
+  const styleClose = '</sty' + 'le>'
+  const scriptOpen = '<scr' + 'ipt>'
+  const scriptClose = '</scr' + 'ipt>'
+
   printWindow.document.write(`
     <!DOCTYPE html>
     <html lang="pt-BR">
     <head>
       <meta charset="UTF-8">
       <title>Santinho - ${candidatoAtivo.value.nomeUrna}</title>
-      <script src="https://cdn.tailwindcss.com"><\/script>
-      <style>
+      ${headCdn}
+      ${styleOpen}
         body {
           background-color: #ffffff !important;
           display: flex;
@@ -549,6 +558,7 @@ const imprimirSantinho = () => {
           margin: 0;
           padding: 20px;
         }
+
         #santinho-card {
           width: 10cm !important;
           height: 14.5cm !important;
@@ -562,23 +572,35 @@ const imprimirSantinho = () => {
           box-sizing: border-box !important;
           border-radius: 1.5rem !important;
         }
+
         #santinho-card img {
           object-fit: cover !important;
         }
+
         @media print {
-          @page { margin: 1cm; size: portrait; }
-          body { padding: 0; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          @page {
+            margin: 1cm;
+            size: portrait;
+          }
+          body {
+            padding: 0;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
-      <\/style>
-    <\/head>
+      ${styleClose}
+    </head>
     <body>
       ${cardHtml}
-      <script>
-        setTimeout(() => { window.print(); }, 800);
-      <\/script>
-    <\/body>
-    <\/html>
+      ${scriptOpen}
+        setTimeout(() => {
+          window.print();
+        }, 800);
+      ${scriptClose}
+    </body>
+    </html>
   `)
   printWindow.document.close()
 }
@@ -1023,7 +1045,7 @@ const imprimirSantinho = () => {
               </p>
             </div>
             <div
-              class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed space-y-3 prose prose-sm dark:prose-invert prose-p:mb-2 prose-ul:list-disc prose-ul:pl-4 prose-li:mb-1 prose-strong:text-indigo-600 dark:prose-strong:text-indigo-400"
+              class="text-justify text-slate-700 dark:text-slate-300 text-sm leading-relaxed space-y-3 prose prose-sm dark:prose-invert prose-p:mb-2 prose-ul:list-disc prose-ul:pl-4 prose-li:mb-1 prose-strong:text-indigo-600 dark:prose-strong:text-indigo-400"
               v-html="resumoIATexto"
             ></div>
           </div>
