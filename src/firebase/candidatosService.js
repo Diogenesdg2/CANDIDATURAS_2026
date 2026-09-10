@@ -240,9 +240,19 @@ export const atualizarStatusCandidato = async (idFirebase, idTse, uf) => {
   try {
     const ID_ELEICAO_2026 = '20322002026'
 
-    const res = await fetch(
-      `/api-tse/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}`,
-    )
+    // Verifica se estamos rodando no computador (localhost) ou na nuvem (produção)
+    const isLocalhost =
+      window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+    // O link original do TSE que precisamos acessar
+    const urlOriginal = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}`
+
+    // Se for localhost, usa o proxy local do Vite. Se for produção, usa o proxy público para burlar o bloqueio CORS
+    const urlFetch = isLocalhost
+      ? `/api-tse/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}`
+      : `https://corsproxy.io/?${encodeURIComponent(urlOriginal)}`
+
+    const res = await fetch(urlFetch)
 
     if (!res.ok) throw new Error('Falha ao comunicar com o TSE')
 
