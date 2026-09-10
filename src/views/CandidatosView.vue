@@ -459,20 +459,40 @@ const compartilharWhatsApp = (candidato) => {
   let textoVice = ''
   if (['Presidente', 'Governador'].includes(candidato.cargo)) {
     if (candidato.vices && candidato.vices.length > 0) {
-      textoVice = `*Vice:* ${candidato.vices.join(' e ')}\n`
+      textoVice = `*Vice:* ${candidato.vices.join(' e ')}
+`
     } else {
-      textoVice = `*Vice:* Aguardando liberação oficial\n`
+      textoVice = `*Vice:* Aguardando liberação oficial
+`
     }
   }
 
-  const texto =
-    `🚨 *FICHA RÁPIDA: ${candidato.nomeUrna.toUpperCase()}* 🚨\nCandidato(a) a ${candidato.cargo} por ${candidato.uf === 'BR' ? 'todo o Brasil' : candidato.uf}\n\n*Número:* ${candidato.numero}\n*Partido:* ${candidato.partido}\n${textoVice}*Idade:* ${idade}\n\n${emojiStatus} *Situação:* ${candidato.situacaoCandidatura || 'Não informado'}\n\n💰 *Patrimônio:* ${patrimonio}\n📈 *Limite Gastos:* ${limite}\n\n🔗 *Explorador Eleitoral 2026:* https://main.d19svo3o4axtyl.amplifyapp.com`.trim()
+  const texto = `🚨 *FICHA RÁPIDA: ${candidato.nomeUrna.toUpperCase()}* 🚨
+Candidato(a) a ${candidato.cargo} por ${candidato.uf === 'BR' ? 'todo o Brasil' : candidato.uf}
+
+*Número:* ${candidato.numero}
+*Partido:* ${candidato.partido}
+${textoVice}*Idade:* ${idade}
+
+${emojiStatus} *Situação:* ${candidato.situacaoCandidatura || 'Não informado'}
+
+💰 *Patrimônio:* ${patrimonio}
+📈 *Limite Gastos:* ${limite}
+
+🔗 *Explorador Eleitoral 2026:* https://main.d19svo3o4axtyl.amplifyapp.com`.trim()
 
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank')
 }
 
 const compartilharSantinhoWhatsApp = (candidato) => {
-  const texto = `🎴 *SANTINHO VIRTUAL*\n\nVote *${candidato.nomeUrna.toUpperCase()}* para ${candidato.cargo}!\n✅ *Número Oficial: ${candidato.numero}*\n🗳️ Partido: ${candidato.partido}\n\nConheça o candidato e baixe o Santinho Digital no Explorador Eleitoral 2026:\n🔗 https://main.d19svo3o4axtyl.amplifyapp.com`
+  const texto = `🎴 *SANTINHO VIRTUAL*
+
+Vote *${candidato.nomeUrna.toUpperCase()}* para ${candidato.cargo}!
+✅ *Número Oficial: ${candidato.numero}*
+🗳️ Partido: ${candidato.partido}
+
+Conheça o candidato e baixe o Santinho Digital no Explorador Eleitoral 2026:
+🔗 https://main.d19svo3o4axtyl.amplifyapp.com`
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank')
 }
 
@@ -820,6 +840,25 @@ const imprimirSantinho = () => {
 
             <!-- SITUAÇÃO & SINCRONIZAR -->
             <div class="space-y-2 mb-6">
+              <!-- 🔥 INFORMATIVO: PATRIMÔNIO / TOTAL DE BENS RESTAURADO -->
+              <div
+                class="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl p-3 flex items-center justify-between shadow-sm"
+              >
+                <div>
+                  <span
+                    class="text-[10px] uppercase tracking-wider font-bold text-emerald-700 dark:text-emerald-400 block"
+                  >
+                    Patrimônio Declarado
+                  </span>
+                  <span
+                    class="text-sm sm:text-base font-black text-emerald-900 dark:text-emerald-200"
+                  >
+                    {{ formatarMoeda(candidato.totalBens) }}
+                  </span>
+                </div>
+                <span class="text-2xl" aria-hidden="true">💰</span>
+              </div>
+
               <div
                 class="p-3 rounded-sm text-white"
                 :class="getCorSituacao(candidato.situacaoCandidatura)"
@@ -985,7 +1024,7 @@ const imprimirSantinho = () => {
               <p
                 class="text-[11px] text-indigo-700 dark:text-indigo-400 font-semibold leading-relaxed"
               >
-                Este resumo foi extraído automaticamente do plano oficial enviado ao TSE. A
+                Este resumo foi extraído automatically do plano oficial enviado ao TSE. A
                 Inteligência Artificial (Google Gemini) leu o documento completo e destacou os
                 pilares principais.
               </p>
