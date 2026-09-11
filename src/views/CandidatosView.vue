@@ -287,12 +287,16 @@ const abrirModal = async (candidato, tipo) => {
   }
 }
 
+// ==========================================
+// 🔥 VARIÁVEIS E FUNÇÕES DA COMPARAÇÃO (VS)
+// ==========================================
 const candidatosComparacao = ref([])
 const modalComparacaoAberto = ref(false)
 
-// 🔥 VARIÁVEIS PARA A BATALHA IA
 const comparacaoIALoading = ref(false)
 const comparacaoIATexto = ref('')
+const comparacaoIAErro = ref(false) // 🚨 NOVA VARIÁVEL DE ERRO
+const mensagemErroIA = ref('') // 🚨 NOVA VARIÁVEL DA MENSAGEM
 
 const toggleComparacao = (candidato) => {
   const index = candidatosComparacao.value.findIndex((c) => c.id === candidato.id)
@@ -313,7 +317,8 @@ const isSelecionadoParaComparar = (candidato) => {
 
 const abrirComparacao = () => {
   if (candidatosComparacao.value.length === 2) {
-    comparacaoIATexto.value = '' // Limpa o combate anterior ao abrir a tela
+    comparacaoIATexto.value = ''
+    comparacaoIAErro.value = false // Limpa erro ao abrir
     modalComparacaoAberto.value = true
   }
 }
@@ -322,11 +327,9 @@ const limparComparacao = () => {
   candidatosComparacao.value = []
 }
 
-// 🔥 FUNÇÃO QUE EXECUTA O COMBATE
 const executarComparacaoIA = async () => {
   if (candidatosComparacao.value.length !== 2) return
 
-  // Dica para o usuário: a IA compara os resumos. Se os resumos não existirem, ela avisa.
   if (!candidatosComparacao.value[0].resumoIA || !candidatosComparacao.value[1].resumoIA) {
     alert(
       "Dica: Para um duelo perfeito, clique no '✨ Resumo IA' no painel de cada candidato antes de trazê-los para o combate!",
@@ -334,6 +337,7 @@ const executarComparacaoIA = async () => {
   }
 
   comparacaoIATexto.value = ''
+  comparacaoIAErro.value = false // Reseta o status de erro
   comparacaoIALoading.value = true
 
   try {
@@ -342,7 +346,8 @@ const executarComparacaoIA = async () => {
       candidatosComparacao.value[1],
     )
   } catch (e) {
-    comparacaoIATexto.value = `<p class="text-red-500 font-bold text-center py-4">Ops! ${e.message}</p>`
+    comparacaoIAErro.value = true
+    mensagemErroIA.value = e.message
   } finally {
     comparacaoIALoading.value = false
   }
@@ -447,7 +452,6 @@ const atualizarTodosStatus = async () => {
   atualizandoTodos.value = false
 }
 
-// 🔥 FUNÇÃO: RETORNA CORES E TEXTOS DO SELO
 const getDadosSelo = (situacao) => {
   if (!situacao)
     return {
@@ -459,7 +463,6 @@ const getDadosSelo = (situacao) => {
 
   const sitUpper = situacao.toUpperCase()
 
-  // Condição para Ficha Suja / Barrado
   if (
     sitUpper.includes('INDEFERIDO') ||
     sitUpper.includes('CASSADO') ||
@@ -473,7 +476,6 @@ const getDadosSelo = (situacao) => {
       animacao: 'animate-pulse',
     }
   }
-  // Condição para Ficha Limpa
   if (sitUpper.includes('DEFERIDO')) {
     return {
       texto: 'FICHA LIMPA',
@@ -482,7 +484,6 @@ const getDadosSelo = (situacao) => {
       animacao: '',
     }
   }
-  // Condição para Aguardando Julgamento
   return {
     texto: 'EM ANÁLISE',
     cor: 'bg-amber-400 text-amber-950 border-amber-500 shadow-amber-900/50',
@@ -1084,6 +1085,7 @@ const imprimirSantinho = () => {
               banco!
             </p>
           </div>
+          <!-- Resultado Gerado -->
           <div v-else class="animate-fade-in">
             <div
               class="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/50 rounded-xl p-4 mb-4 flex gap-3 items-center"
@@ -1102,6 +1104,18 @@ const imprimirSantinho = () => {
               class="text-justify text-slate-700 dark:text-slate-300 text-sm leading-relaxed space-y-3 prose prose-sm dark:prose-invert prose-p:mb-2 prose-ul:list-disc prose-ul:pl-4 prose-li:mb-1 prose-strong:text-indigo-600 dark:prose-strong:text-indigo-400"
               v-html="resumoIATexto"
             ></div>
+
+            <!-- 🔥 AVISO LEGAL DA IA -->
+            <div
+              class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-start gap-2 text-[10px] text-slate-400 dark:text-slate-500"
+            >
+              <span class="text-sm">⚠️</span>
+              <p>
+                <strong>Aviso:</strong> Por se tratar de um sistema alimentado por Inteligência
+                Artificial, este resumo pode conter imprecisões ou erros de interpretação. Para
+                decisões formais, consulte sempre o PDF original.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1330,12 +1344,14 @@ const imprimirSantinho = () => {
       </header>
 
       <div class="p-4 md:p-8 flex-grow">
+        <!-- 🔥 CONTAINER DA BATALHA IA (APENAS PRESIDENTE E GOVERNADOR) -->
         <div
+          v-if="['Presidente', 'Governador'].includes(candidatosComparacao[0]?.cargo)"
           class="mb-8 w-full bg-slate-100 dark:bg-slate-800/80 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden"
         >
           <div class="flex flex-col items-center text-center">
             <button
-              v-if="!comparacaoIATexto && !comparacaoIALoading"
+              v-if="!comparacaoIATexto && !comparacaoIALoading && !comparacaoIAErro"
               @click="executarComparacaoIA"
               class="bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 text-white font-black py-3 px-8 rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center gap-2"
             >
@@ -1365,9 +1381,24 @@ const imprimirSantinho = () => {
               </p>
             </div>
 
+            <!-- 🔥 ERRO DA IA COM BOTÃO DE TENTAR NOVAMENTE -->
+            <div
+              v-else-if="comparacaoIAErro"
+              class="w-full bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/50 rounded-xl p-5 flex flex-col items-center text-center animate-fade-in"
+            >
+              <span class="text-4xl mb-3">⚠️</span>
+              <p class="text-red-600 dark:text-red-400 font-bold mb-4">Ops! {{ mensagemErroIA }}</p>
+              <button
+                @click="executarComparacaoIA"
+                class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2 shadow-md"
+              >
+                🔄 Tentar Novamente
+              </button>
+            </div>
+
             <!-- Resultado da IA -->
             <div
-              v-else
+              v-else-if="comparacaoIATexto"
               class="w-full text-justify text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner animate-fade-in"
             >
               <div
@@ -1381,9 +1412,23 @@ const imprimirSantinho = () => {
                 </p>
               </div>
               <div v-html="comparacaoIATexto"></div>
+
+              <!-- 🔥 AVISO LEGAL DA IA -->
+              <div
+                class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-start gap-2 text-[10px] text-slate-400 dark:text-slate-500"
+              >
+                <span class="text-sm">⚠️</span>
+                <p>
+                  <strong>Aviso:</strong> Por se tratar de um sistema alimentado por Inteligência
+                  Artificial, este texto cruzado gerado automaticamente pode conter imprecisões.
+                  Consulte sempre os documentos originais do TSE.
+                </p>
+              </div>
             </div>
           </div>
         </div>
+        <!-- FIM DO CONTAINER DA BATALHA IA -->
+
         <div class="grid grid-cols-2 gap-4 md:gap-8 relative">
           <div
             class="absolute left-1/2 top-24 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-black italic shadow-xl z-20 text-xs md:text-base border-4 border-slate-50 dark:border-slate-900"

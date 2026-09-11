@@ -623,11 +623,22 @@ export const gerarResumoIA = async (candidato) => {
   }
 }
 // ====================================================
-// ⚔️ BATALHA DE CANDIDATOS (COMPARAÇÃO COM IA)
+// ⚔️ BATALHA DE CANDIDATOS (COMPARAÇÃO COM IA E CACHE)
 // ====================================================
 export const gerarComparacaoIA = async (candidato1, candidato2) => {
   try {
-    // 1. Truque de ofuscação igual ao do Resumo IA
+    // 1. Criar o ID único do combate ordenando os IDs.
+    const idCombate = [candidato1.id, candidato2.id].sort().join('_')
+    const docRef = doc(db, 'comparacoes_ia', idCombate)
+
+    // 2. Verificar se esse combate já existe no banco (CACHE)
+    const docSnap = await getDoc(docRef)
+    if (docSnap.exists()) {
+      console.log('Combate carregado do banco de dados (Cache)!')
+      return docSnap.data().texto
+    }
+
+    // 3. Se não existe no banco, chama a IA do Google
     const parte1 = 'AQ.Ab8RN6JY29UX5r7X9'
     const parte2Mascara = '_0zMyU6uD-4y1KLo8E8peN7xpoJxXqbdAa'
     const desmascararChave = (p1, p2) => p1 + p2.slice(0, -1)
@@ -635,7 +646,6 @@ export const gerarComparacaoIA = async (candidato1, candidato2) => {
     const genAI = new GoogleGenerativeAI(desmascararChave(parte1, parte2Mascara))
     const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' })
 
-    // 2. Monta o Prompt para o Combate
     const prompt = `
       Aja como um analista político de alto nível, apartidário e extremamente direto.
       Vou fornecer os dados básicos e o resumo do plano de governo de dois candidatos que disputam a mesma eleição.
@@ -658,9 +668,19 @@ export const gerarComparacaoIA = async (candidato1, candidato2) => {
     `
 
     const result = await model.generateContent(prompt)
-    return result.response.text()
+    const textoGerado = result.response.text()
+
+    // 4. Salvar o resultado no banco para a próxima pessoa não gastar nossa IA!
+    await setDoc(docRef, {
+      texto: textoGerado,
+      candidatos: [candidato1.nomeUrna, candidato2.nomeUrna].sort(),
+      dataGeracao: new Date().toISOString(),
+    })
+
+    return textoGerado
   } catch (error) {
     console.error('Erro na Batalha IA:', error)
+    // O erro de sintaxe corrigido está aqui abaixo
     throw new Error(
       'Os servidores da IA estão sobrecarregados ou não conseguiram cruzar os dados neste momento.',
       { cause: error },
