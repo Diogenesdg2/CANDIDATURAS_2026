@@ -448,8 +448,13 @@ const atualizarTodosStatus = async () => {
   progressoGlobal.value = { atual: 0, total: lista.length }
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-  // 🔥 TRUQUE ANTI-FIREWALL: Cria um tempo aleatório entre um mínimo e máximo
   const tempoAleatorio = (min, max) => Math.floor(Math.random() * (max - min + 1) + min)
+
+  // 🔥 VELOCIDADE INTELIGENTE POR AMBIENTE
+  // Localhost (isDev): Mais rápido para desenvolvimento (800ms a 1.2s)
+  // AWS (Produção): Mais lento para evitar o bloqueio severo de IPs de nuvem (2.5s a 3.5s)
+  const tempoMinimo = isDev ? 800 : 2500
+  const tempoMaximo = isDev ? 1200 : 3500
 
   for (const candidato of lista) {
     atualizandoId.value = candidato.id
@@ -471,15 +476,13 @@ const atualizarTodosStatus = async () => {
     }
     progressoGlobal.value.atual++
 
-    // 🔥 Pausa caótica: Espera entre 2.5 e 3.5 segundos antes de puxar o próximo!
-    // Isso "engana" o TSE, fazendo parecer que alguém está clicando devagar na tela.
-    await sleep(tempoAleatorio(2500, 3500))
+    // Aplica o tempo caótico baseado em onde o código está rodando
+    await sleep(tempoAleatorio(tempoMinimo, tempoMaximo))
   }
 
   atualizandoId.value = null
   atualizandoTodos.value = false
 }
-
 // 🔥 LÓGICA DE CORES E SELOS
 const getDadosSelo = (situacao) => {
   if (!situacao)
