@@ -7,6 +7,7 @@ import {
   buscarRaioXCamara,
   getStatusManutencao,
   gerarResumoIA,
+  gerarComparacaoIA,
 } from '../firebase/candidatosService'
 
 const route = useRoute()
@@ -289,6 +290,10 @@ const abrirModal = async (candidato, tipo) => {
 const candidatosComparacao = ref([])
 const modalComparacaoAberto = ref(false)
 
+// 🔥 VARIÁVEIS PARA A BATALHA IA
+const comparacaoIALoading = ref(false)
+const comparacaoIATexto = ref('')
+
 const toggleComparacao = (candidato) => {
   const index = candidatosComparacao.value.findIndex((c) => c.id === candidato.id)
   if (index > -1) {
@@ -307,11 +312,40 @@ const isSelecionadoParaComparar = (candidato) => {
 }
 
 const abrirComparacao = () => {
-  if (candidatosComparacao.value.length === 2) modalComparacaoAberto.value = true
+  if (candidatosComparacao.value.length === 2) {
+    comparacaoIATexto.value = '' // Limpa o combate anterior ao abrir a tela
+    modalComparacaoAberto.value = true
+  }
 }
 
 const limparComparacao = () => {
   candidatosComparacao.value = []
+}
+
+// 🔥 FUNÇÃO QUE EXECUTA O COMBATE
+const executarComparacaoIA = async () => {
+  if (candidatosComparacao.value.length !== 2) return
+
+  // Dica para o usuário: a IA compara os resumos. Se os resumos não existirem, ela avisa.
+  if (!candidatosComparacao.value[0].resumoIA || !candidatosComparacao.value[1].resumoIA) {
+    alert(
+      "Dica: Para um duelo perfeito, clique no '✨ Resumo IA' no painel de cada candidato antes de trazê-los para o combate!",
+    )
+  }
+
+  comparacaoIATexto.value = ''
+  comparacaoIALoading.value = true
+
+  try {
+    comparacaoIATexto.value = await gerarComparacaoIA(
+      candidatosComparacao.value[0],
+      candidatosComparacao.value[1],
+    )
+  } catch (e) {
+    comparacaoIATexto.value = `<p class="text-red-500 font-bold text-center py-4">Ops! ${e.message}</p>`
+  } finally {
+    comparacaoIALoading.value = false
+  }
 }
 
 const ordenarBens = (bens) => {
@@ -1296,6 +1330,60 @@ const imprimirSantinho = () => {
       </header>
 
       <div class="p-4 md:p-8 flex-grow">
+        <div
+          class="mb-8 w-full bg-slate-100 dark:bg-slate-800/80 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden"
+        >
+          <div class="flex flex-col items-center text-center">
+            <button
+              v-if="!comparacaoIATexto && !comparacaoIALoading"
+              @click="executarComparacaoIA"
+              class="bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 text-white font-black py-3 px-8 rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center gap-2"
+            >
+              <span class="text-2xl">✨</span> Analisar Combate com Inteligência Artificial
+            </button>
+
+            <!-- Loading da IA -->
+            <div
+              v-else-if="comparacaoIALoading"
+              class="flex flex-col items-center py-4 animate-pulse"
+            >
+              <div
+                class="w-12 h-12 bg-gradient-to-tr from-fuchsia-500 to-indigo-500 rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30 mb-4"
+              >
+                <svg class="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"
+                  ></path>
+                </svg>
+              </div>
+              <p class="text-sm font-bold text-slate-700 dark:text-slate-300">
+                A IA está cruzando os dados e planos de governo...
+              </p>
+            </div>
+
+            <!-- Resultado da IA -->
+            <div
+              v-else
+              class="w-full text-justify text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner animate-fade-in"
+            >
+              <div
+                class="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-800 pb-2"
+              >
+                <span class="text-2xl">🤖</span>
+                <p
+                  class="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider"
+                >
+                  Veredito da Inteligência Artificial
+                </p>
+              </div>
+              <div v-html="comparacaoIATexto"></div>
+            </div>
+          </div>
+        </div>
         <div class="grid grid-cols-2 gap-4 md:gap-8 relative">
           <div
             class="absolute left-1/2 top-24 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-black italic shadow-xl z-20 text-xs md:text-base border-4 border-slate-50 dark:border-slate-900"

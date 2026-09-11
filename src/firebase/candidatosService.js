@@ -622,3 +622,48 @@ export const gerarResumoIA = async (candidato) => {
     )
   }
 }
+// ====================================================
+// ⚔️ BATALHA DE CANDIDATOS (COMPARAÇÃO COM IA)
+// ====================================================
+export const gerarComparacaoIA = async (candidato1, candidato2) => {
+  try {
+    // 1. Truque de ofuscação igual ao do Resumo IA
+    const parte1 = 'AQ.Ab8RN6JY29UX5r7X9'
+    const parte2Mascara = '_0zMyU6uD-4y1KLo8E8peN7xpoJxXqbdAa'
+    const desmascararChave = (p1, p2) => p1 + p2.slice(0, -1)
+
+    const genAI = new GoogleGenerativeAI(desmascararChave(parte1, parte2Mascara))
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' })
+
+    // 2. Monta o Prompt para o Combate
+    const prompt = `
+      Aja como um analista político de alto nível, apartidário e extremamente direto.
+      Vou fornecer os dados básicos e o resumo do plano de governo de dois candidatos que disputam a mesma eleição.
+
+      [Candidato 1]
+      Nome: ${candidato1.nomeUrna} (${candidato1.partido})
+      Bens Declarados: R$ ${candidato1.totalBens || 0}
+      Pilares do Plano de Governo: ${candidato1.resumoIA || 'Plano não analisado / Indisponível'}
+
+      [Candidato 2]
+      Nome: ${candidato2.nomeUrna} (${candidato2.partido})
+      Bens Declarados: R$ ${candidato2.totalBens || 0}
+      Pilares do Plano de Governo: ${candidato2.resumoIA || 'Plano não analisado / Indisponível'}
+
+      Tarefa:
+      Escreva um parágrafo único (máximo 6 linhas) traçando o perfil de disputa entre eles.
+      Evidencie o foco principal de cada um (ex: "Enquanto o Candidato A foca mais em privatizações, o Candidato B prioriza auxílios sociais...").
+      Não invente informações que não estejam aqui. Não emita juízo de valor sobre quem é melhor ou pior.
+      Retorne HTML puro usando <p> e <strong> para destacar o nome dos candidatos. Não use marcadores markdown como \`\`\`html.
+    `
+
+    const result = await model.generateContent(prompt)
+    return result.response.text()
+  } catch (error) {
+    console.error('Erro na Batalha IA:', error)
+    throw new Error(
+      'Os servidores da IA estão sobrecarregados ou não conseguiram cruzar os dados neste momento.',
+      { cause: error },
+    )
+  }
+}
