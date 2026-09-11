@@ -129,19 +129,6 @@ const partidosOficiais = [
   'UP',
 ]
 
-const cargosOficiais = [
-  'Presidente',
-  'Vice-Presidente',
-  'Governador',
-  'Vice-Governador',
-  'Senador',
-  'Deputado Federal',
-  'Deputado Estadual',
-  'Deputado Distrital',
-  '1º Suplente',
-  '2º Suplente',
-]
-
 const situacoesOficiais = [
   'Aguardando julgamento',
   'Deferido',
@@ -154,6 +141,40 @@ const situacoesOficiais = [
   'Falecido',
   'Não informado',
 ]
+
+// 🔥 LÓGICA INTELIGENTE DE CARGOS BASEADA NO LOCAL (UF)
+const cargosDisponiveis = computed(() => {
+  const uf = inputUf.value
+
+  if (!uf) {
+    return [
+      'Presidente',
+      'Vice-Presidente',
+      'Governador',
+      'Vice-Governador',
+      'Senador',
+      'Deputado Federal',
+      'Deputado Estadual',
+      'Deputado Distrital',
+    ]
+  }
+
+  if (uf === 'BR') {
+    return ['Presidente', 'Vice-Presidente']
+  }
+
+  if (uf === 'DF') {
+    return ['Governador', 'Vice-Governador', 'Senador', 'Deputado Federal', 'Deputado Distrital']
+  }
+
+  return ['Governador', 'Vice-Governador', 'Senador', 'Deputado Federal', 'Deputado Estadual']
+})
+
+watch(inputUf, () => {
+  if (inputCargo.value && !cargosDisponiveis.value.includes(inputCargo.value)) {
+    inputCargo.value = ''
+  }
+})
 
 const aplicarFiltros = async () => {
   const mudouFiltroPesado =
@@ -295,8 +316,8 @@ const modalComparacaoAberto = ref(false)
 
 const comparacaoIALoading = ref(false)
 const comparacaoIATexto = ref('')
-const comparacaoIAErro = ref(false) // 🚨 NOVA VARIÁVEL DE ERRO
-const mensagemErroIA = ref('') // 🚨 NOVA VARIÁVEL DA MENSAGEM
+const comparacaoIAErro = ref(false)
+const mensagemErroIA = ref('')
 
 const toggleComparacao = (candidato) => {
   const index = candidatosComparacao.value.findIndex((c) => c.id === candidato.id)
@@ -318,7 +339,7 @@ const isSelecionadoParaComparar = (candidato) => {
 const abrirComparacao = () => {
   if (candidatosComparacao.value.length === 2) {
     comparacaoIATexto.value = ''
-    comparacaoIAErro.value = false // Limpa erro ao abrir
+    comparacaoIAErro.value = false
     modalComparacaoAberto.value = true
   }
 }
@@ -337,7 +358,7 @@ const executarComparacaoIA = async () => {
   }
 
   comparacaoIATexto.value = ''
-  comparacaoIAErro.value = false // Reseta o status de erro
+  comparacaoIAErro.value = false
   comparacaoIALoading.value = true
 
   try {
@@ -425,7 +446,10 @@ const atualizarTodosStatus = async () => {
 
   atualizandoTodos.value = true
   progressoGlobal.value = { atual: 0, total: lista.length }
+
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+  // 🔥 TRUQUE ANTI-FIREWALL: Cria um tempo aleatório entre um mínimo e máximo
+  const tempoAleatorio = (min, max) => Math.floor(Math.random() * (max - min + 1) + min)
 
   for (const candidato of lista) {
     atualizandoId.value = candidato.id
@@ -443,15 +467,20 @@ const atualizarTodosStatus = async () => {
       candidato.sites = novosDados.sites || []
       candidato.planoGovernoUrl = novosDados.planoGovernoUrl || null
     } catch (error) {
-      console.warn(`Falha ao sincronizar ${candidato.nomeUrna}.`)
+      console.warn(`Falha ao sincronizar ${candidato.nomeUrna}. Bloqueio temporário.`)
     }
     progressoGlobal.value.atual++
-    await sleep(1000)
+
+    // 🔥 Pausa caótica: Espera entre 2.5 e 3.5 segundos antes de puxar o próximo!
+    // Isso "engana" o TSE, fazendo parecer que alguém está clicando devagar na tela.
+    await sleep(tempoAleatorio(2500, 3500))
   }
+
   atualizandoId.value = null
   atualizandoTodos.value = false
 }
 
+// 🔥 LÓGICA DE CORES E SELOS
 const getDadosSelo = (situacao) => {
   if (!situacao)
     return {
@@ -476,6 +505,21 @@ const getDadosSelo = (situacao) => {
       animacao: 'animate-pulse',
     }
   }
+
+  // 🔥 RENÚNCIA OU FALECIDO
+  if (
+    sitUpper.includes('RENÚNCIA') ||
+    sitUpper.includes('RENUNCIA') ||
+    sitUpper.includes('FALECIDO')
+  ) {
+    return {
+      texto: sitUpper.includes('FALECIDO') ? 'FALECIDO' : 'RENÚNCIA',
+      cor: 'bg-slate-600 text-white border-slate-700 shadow-slate-900/50',
+      icone: '🏳️',
+      animacao: '',
+    }
+  }
+
   if (sitUpper.includes('DEFERIDO')) {
     return {
       texto: 'FICHA LIMPA',
@@ -495,6 +539,7 @@ const getDadosSelo = (situacao) => {
 const getCorSituacao = (situacao) => {
   if (!situacao) return 'bg-[#1f6d6d]'
   const sitUpper = situacao.toUpperCase()
+
   if (
     sitUpper.includes('INDEFERIDO') ||
     sitUpper.includes('CASSADO') ||
@@ -503,6 +548,15 @@ const getCorSituacao = (situacao) => {
   ) {
     return 'bg-red-600'
   }
+
+  if (
+    sitUpper.includes('RENÚNCIA') ||
+    sitUpper.includes('RENUNCIA') ||
+    sitUpper.includes('FALECIDO')
+  ) {
+    return 'bg-slate-600'
+  }
+
   if (sitUpper.includes('DEFERIDO')) return 'bg-blue-600'
   return 'bg-[#1f6d6d]'
 }
@@ -514,7 +568,10 @@ const isInelegivel = (situacao) => {
     sitUpper.includes('INDEFERIDO') ||
     sitUpper.includes('CASSADO') ||
     sitUpper.includes('CANCELADO') ||
-    sitUpper.includes('INELEGÍVEL')
+    sitUpper.includes('INELEGÍVEL') ||
+    sitUpper.includes('RENÚNCIA') ||
+    sitUpper.includes('RENUNCIA') ||
+    sitUpper.includes('FALECIDO')
   )
 }
 
@@ -561,7 +618,7 @@ const compartilharSantinhoWhatsApp = (candidato) => {
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank')
 }
 
-// 🔥 A MÁGICA DE IMPRESSÃO ISOLADA (BLINDADA CONTRA O VITE/PRETTIER)
+// 🔥 A MÁGICA DE IMPRESSÃO ISOLADA
 const imprimirSantinho = () => {
   const cardElement = document.getElementById('santinho-card')
   if (!cardElement) return
@@ -570,7 +627,6 @@ const imprimirSantinho = () => {
 
   const printWindow = window.open('', '_blank')
 
-  // 🛡️ Truque Ninja: Separamos as tags para o Vue/Prettier nunca lerem como HTML
   const headCdn = '<scr' + 'ipt src="https://cdn.tailwindcss.com"></scr' + 'ipt>'
   const styleOpen = '<sty' + 'le>'
   const styleClose = '</sty' + 'le>'
@@ -613,26 +669,16 @@ const imprimirSantinho = () => {
         }
 
         @media print {
-          @page {
-            margin: 1cm;
-            size: portrait;
-          }
-          body {
-            padding: 0;
-          }
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
+          @page { margin: 1cm; size: portrait; }
+          body { padding: 0; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       ${styleClose}
     </head>
     <body>
       ${cardHtml}
       ${scriptOpen}
-        setTimeout(() => {
-          window.print();
-        }, 800);
+        setTimeout(() => { window.print(); }, 800);
       ${scriptClose}
     </body>
     </html>
@@ -725,61 +771,66 @@ const imprimirSantinho = () => {
           </button>
         </div>
 
-        <!-- BARRA DE FILTROS -->
+        <!-- BARRA DE FILTROS (REFORMULADA EM DUAS LINHAS) -->
         <div
-          class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row gap-3 items-stretch xl:items-center"
+          class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col gap-4"
         >
-          <input
-            v-model="inputBusca"
-            @keyup.enter="aplicarFiltros"
-            type="search"
-            placeholder="Buscar por nome..."
-            class="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            v-model="inputUf"
-            class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm"
-          >
-            <option value="">Todos os Estados</option>
-            <option v-for="u in ufsOficiais" :key="u.sigla" :value="u.sigla">{{ u.nome }}</option>
-          </select>
-          <select
-            v-model="inputCargo"
-            class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm"
-          >
-            <option value="">Todos os Cargos</option>
-            <option v-for="c in cargosOficiais" :key="c" :value="c">{{ c }}</option>
-          </select>
-          <select
-            v-model="inputPartido"
-            class="w-full xl:w-36 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm"
-          >
-            <option value="">Partidos (Todos)</option>
-            <option v-for="p in partidosOficiais" :key="p" :value="p">{{ p }}</option>
-          </select>
-          <select
-            v-model="inputSituacao"
-            class="w-full xl:w-44 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm"
-          >
-            <option value="">Qualquer Situação</option>
-            <option v-for="s in situacoesOficiais" :key="s" :value="s">{{ s }}</option>
-          </select>
-          <div
-            class="flex gap-2 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 xl:border-l border-slate-200 dark:border-slate-700 xl:pl-3"
-          >
-            <button
-              @click="aplicarFiltros"
-              class="flex-1 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-sm"
+          <!-- LINHA 1 -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input
+              v-model="inputBusca"
+              @keyup.enter="aplicarFiltros"
+              type="search"
+              placeholder="Buscar por nome..."
+              class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <select
+              v-model="inputUf"
+              class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm"
             >
-              Filtrar
-            </button>
-            <button
-              v-if="buscaRealizada"
-              @click="limparFiltros"
-              class="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm"
+              <option value="">Todos os Estados / Nacional</option>
+              <option v-for="u in ufsOficiais" :key="u.sigla" :value="u.sigla">{{ u.nome }}</option>
+            </select>
+            <select
+              v-model="inputCargo"
+              class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm"
             >
-              Limpar
-            </button>
+              <option value="">Todos os Cargos</option>
+              <option v-for="c in cargosDisponiveis" :key="c" :value="c">{{ c }}</option>
+            </select>
+          </div>
+
+          <!-- LINHA 2 -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <select
+              v-model="inputPartido"
+              class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm"
+            >
+              <option value="">Partidos (Todos)</option>
+              <option v-for="p in partidosOficiais" :key="p" :value="p">{{ p }}</option>
+            </select>
+            <select
+              v-model="inputSituacao"
+              class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm"
+            >
+              <option value="">Qualquer Situação</option>
+              <option v-for="s in situacoesOficiais" :key="s" :value="s">{{ s }}</option>
+            </select>
+            <div class="flex gap-2 w-full">
+              <button
+                @click="aplicarFiltros"
+                class="flex-1 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-sm transition-colors"
+              >
+                Filtrar
+              </button>
+              <button
+                v-if="buscaRealizada"
+                @click="limparFiltros"
+                class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm transition-colors"
+              >
+                Limpar
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -823,7 +874,6 @@ const imprimirSantinho = () => {
             <div
               class="relative mb-4 flex justify-center bg-slate-50 dark:bg-slate-800/50 py-4 rounded-xl border border-slate-100 dark:border-slate-700/50"
             >
-              <!-- 🔥 NOVO SELO DE FICHA SUJA / LIMPA -->
               <div
                 v-if="candidato.situacaoCandidatura"
                 class="absolute -top-3 -right-2 px-3 py-1.5 rounded-lg border-[3px] font-black text-[10px] sm:text-xs tracking-widest uppercase shadow-lg flex items-center gap-1.5 z-10 transition-transform hover:scale-105"
@@ -836,7 +886,6 @@ const imprimirSantinho = () => {
                 {{ getDadosSelo(candidato.situacaoCandidatura).texto }}
               </div>
 
-              <!-- 🔥 FOTO DO CANDIDATO COM EFEITO CINZA CASO ESTEJA INELEGÍVEL -->
               <img
                 :src="candidato.fotoUrl"
                 :alt="`Foto oficial de ${candidato.nomeUrna}`"
@@ -1085,7 +1134,6 @@ const imprimirSantinho = () => {
               banco!
             </p>
           </div>
-          <!-- Resultado Gerado -->
           <div v-else class="animate-fade-in">
             <div
               class="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/50 rounded-xl p-4 mb-4 flex gap-3 items-center"
@@ -1099,13 +1147,10 @@ const imprimirSantinho = () => {
                 pilares principais.
               </p>
             </div>
-            <!-- 🔥 TEXTO DA IA JUSTIFICADO -->
             <div
               class="text-justify text-slate-700 dark:text-slate-300 text-sm leading-relaxed space-y-3 prose prose-sm dark:prose-invert prose-p:mb-2 prose-ul:list-disc prose-ul:pl-4 prose-li:mb-1 prose-strong:text-indigo-600 dark:prose-strong:text-indigo-400"
               v-html="resumoIATexto"
             ></div>
-
-            <!-- 🔥 AVISO LEGAL DA IA -->
             <div
               class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-start gap-2 text-[10px] text-slate-400 dark:text-slate-500"
             >
@@ -1344,7 +1389,6 @@ const imprimirSantinho = () => {
       </header>
 
       <div class="p-4 md:p-8 flex-grow">
-        <!-- 🔥 CONTAINER DA BATALHA IA (APENAS PRESIDENTE E GOVERNADOR) -->
         <div
           v-if="['Presidente', 'Governador'].includes(candidatosComparacao[0]?.cargo)"
           class="mb-8 w-full bg-slate-100 dark:bg-slate-800/80 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden"
@@ -1358,7 +1402,6 @@ const imprimirSantinho = () => {
               <span class="text-2xl">✨</span> Analisar Combate com Inteligência Artificial
             </button>
 
-            <!-- Loading da IA -->
             <div
               v-else-if="comparacaoIALoading"
               class="flex flex-col items-center py-4 animate-pulse"
@@ -1381,7 +1424,6 @@ const imprimirSantinho = () => {
               </p>
             </div>
 
-            <!-- 🔥 ERRO DA IA COM BOTÃO DE TENTAR NOVAMENTE -->
             <div
               v-else-if="comparacaoIAErro"
               class="w-full bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/50 rounded-xl p-5 flex flex-col items-center text-center animate-fade-in"
@@ -1396,7 +1438,6 @@ const imprimirSantinho = () => {
               </button>
             </div>
 
-            <!-- Resultado da IA -->
             <div
               v-else-if="comparacaoIATexto"
               class="w-full text-justify text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner animate-fade-in"
@@ -1412,8 +1453,6 @@ const imprimirSantinho = () => {
                 </p>
               </div>
               <div v-html="comparacaoIATexto"></div>
-
-              <!-- 🔥 AVISO LEGAL DA IA -->
               <div
                 class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-start gap-2 text-[10px] text-slate-400 dark:text-slate-500"
               >
@@ -1427,7 +1466,6 @@ const imprimirSantinho = () => {
             </div>
           </div>
         </div>
-        <!-- FIM DO CONTAINER DA BATALHA IA -->
 
         <div class="grid grid-cols-2 gap-4 md:gap-8 relative">
           <div
