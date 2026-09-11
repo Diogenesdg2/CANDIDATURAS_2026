@@ -240,19 +240,11 @@ export const atualizarStatusCandidato = async (idFirebase, idTse, uf) => {
   try {
     const ID_ELEICAO_2026 = '20322002026'
 
-    // Verifica se estamos rodando no computador (localhost) ou na nuvem (produção)
-    const isLocalhost =
-      window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-
-    // O link original do TSE que precisamos acessar
-    const urlOriginal = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}`
-
-    // Usando o AllOrigins (com o final /raw) que é mais amigável com firewalls do governo
-    const urlFetch = isLocalhost
-      ? `/api-tse/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}`
-      : `https://api.allorigins.win/raw?url=${encodeURIComponent(urlOriginal)}`
-
-    const res = await fetch(urlFetch)
+    // 🏆 SOLUÇÃO DEFINITIVA: O Amplify agora resolve isso nos bastidores!
+    // Apenas chamamos o /api-tse e a AWS se encarrega de pedir os dados ao TSE sem bloquear o CORS.
+    const res = await fetch(
+      `/api-tse/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}`,
+    )
 
     if (!res.ok) throw new Error('Falha ao comunicar com o TSE')
 
