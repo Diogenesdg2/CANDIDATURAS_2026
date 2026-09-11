@@ -11,8 +11,8 @@ import {
   buscarResultadosEnquete,
   buscarCandidatos,
   registrarVoto,
-  getConfigUrna,
-  setConfigUrna,
+  getConfigUrna, // 🔥 Função nova
+  setConfigUrna, // 🔥 Função nova
 } from '../firebase/candidatosService'
 
 const router = useRouter()
@@ -238,12 +238,6 @@ const salvarConfigUrna = async () => {
   } else {
     alert('Erro ao salvar as configurações no Firebase.')
   }
-}
-
-// 🔥 NOVA FUNÇÃO SEGURA PARA O BOTÃO DA URNA
-const toggleBloqueioUrna = () => {
-  configUrna.value.bloqueioAtivo = !configUrna.value.bloqueioAtivo
-  salvarConfigUrna()
 }
 
 onUnmounted(() => {
@@ -1101,25 +1095,6 @@ const confirmarUrna = async () => {
                 O administrador do painel ainda não sincronizou os dados deste estado.
               </p>
             </div>
-          </div>
-        </div>
-
-        <!-- BOTAO URNA ANTIGO (CASO ESTEJA ATIVADO EM TELA MENOR OU COMPLEMENTAR) -->
-        <div
-          v-if="isDev"
-          class="mt-4 p-3 bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800/30 rounded-lg flex justify-between items-center"
-        >
-          <span class="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase"
-            >Dev: Bloqueio Urna ({{ configUrna.tempoMinutos }}m)</span
-          >
-          <div class="flex items-center gap-2">
-            <!-- 🔥 Função blindada chamada via script -->
-            <button
-              @click="toggleBloqueioUrna"
-              class="px-2 py-1 bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-700 rounded text-[10px] font-bold text-purple-700 dark:text-purple-300"
-            >
-              {{ configUrna.bloqueioAtivo ? 'Desativar' : 'Ativar' }}
-            </button>
           </div>
         </div>
       </div>
