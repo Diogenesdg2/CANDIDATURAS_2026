@@ -247,10 +247,10 @@ export const atualizarStatusCandidato = async (idFirebase, idTse, uf) => {
     // O link original do TSE que precisamos acessar
     const urlOriginal = `https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}`
 
-    // Se for localhost, usa o proxy local do Vite. Se for produção, usa o proxy público para burlar o bloqueio CORS
+    // Usando o AllOrigins (com o final /raw) que é mais amigável com firewalls do governo
     const urlFetch = isLocalhost
       ? `/api-tse/divulga/rest/v1/candidatura/buscar/2026/${uf}/${ID_ELEICAO_2026}/candidato/${idTse}`
-      : `https://corsproxy.io/?${encodeURIComponent(urlOriginal)}`
+      : `https://api.allorigins.win/raw?url=${encodeURIComponent(urlOriginal)}`
 
     const res = await fetch(urlFetch)
 
