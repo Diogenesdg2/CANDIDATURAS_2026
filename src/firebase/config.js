@@ -13,7 +13,7 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig); // <-- ESTA LINHA ESTAVA FALTANDO!
+const app = initializeApp(firebaseConfig);
 
 // Exporta o banco de dados
 export const db = getFirestore(app);
