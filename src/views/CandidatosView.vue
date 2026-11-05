@@ -420,7 +420,16 @@ const alertarFaltaPlano = (e) => {
 const verificarStatusEmTempoReal = async (candidato) => {
   if (atualizandoTodos.value) return
   atualizandoId.value = candidato.id
+
   try {
+
+    if (!isDev) {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      await sleep(2000)
+      return
+    }
+
+
     const novosDados = await atualizarStatusCandidato(candidato.id, candidato.idTse, candidato.uf)
     candidato.situacaoCandidatura = novosDados.situacaoCandidatura
     candidato.situacaoPartido = novosDados.situacaoPartido
