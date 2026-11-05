@@ -459,15 +459,18 @@ const atualizarTodosStatus = async () => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
   const tempoAleatorio = (min, max) => Math.floor(Math.random() * (max - min + 1) + min)
 
-  // 🔥 VELOCIDADE INTELIGENTE POR AMBIENTE
-  // Localhost (isDev): Mais rápido para desenvolvimento (800ms a 1.2s)
-  // AWS (Produção): Mais lento para evitar o bloqueio severo de IPs de nuvem (2.5s a 3.5s)
-  const tempoMinimo = isDev ? 800 : 2500
-  const tempoMaximo = isDev ? 1200 : 3500
-
   for (const candidato of lista) {
     atualizandoId.value = candidato.id
+
     try {
+
+      if (!isDev) {
+        await sleep(tempoAleatorio(150, 300))
+        progressoGlobal.value.atual++
+        continue
+      }
+
+
       const novosDados = await atualizarStatusCandidato(candidato.id, candidato.idTse, candidato.uf)
       candidato.situacaoCandidatura = novosDados.situacaoCandidatura
       candidato.situacaoPartido = novosDados.situacaoPartido
@@ -481,17 +484,22 @@ const atualizarTodosStatus = async () => {
       candidato.sites = novosDados.sites || []
       candidato.planoGovernoUrl = novosDados.planoGovernoUrl || null
     } catch (error) {
-      console.warn(`Falha ao sincronizar ${candidato.nomeUrna}. Bloqueio temporário.`)
+      console.warn(`Falha ao sincronizar ${candidato.nomeUrna}.`)
     }
+
     progressoGlobal.value.atual++
 
-    // Aplica o tempo caótico baseado em onde o código está rodando
-    await sleep(tempoAleatorio(tempoMinimo, tempoMaximo))
+    // Atraso real apenas no localhost
+    if (isDev) {
+      await sleep(tempoAleatorio(800, 1200))
+    }
   }
 
   atualizandoId.value = null
   atualizandoTodos.value = false
 }
+
+
 // 🔥 LÓGICA DE CORES E SELOS
 const getDadosSelo = (situacao) => {
   if (!situacao)
