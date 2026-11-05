@@ -204,7 +204,6 @@ const iniciarContagemRegressiva = (msRestantes) => {
 }
 
 const checarBloqueioVoto = () => {
-  // Se o bloqueio estiver desativado pelo dev, ele cancela instantaneamente e limpa tudo
   if (!configUrna.value.bloqueioAtivo) {
     bloqueadoParaVoto.value = false
     localStorage.removeItem('bloqueioVotoUrna')
@@ -212,7 +211,6 @@ const checarBloqueioVoto = () => {
     return
   }
 
-  // Se estiver ativado, usa o tempo em minutos dinâmico que vem do Firebase
   const minutos = parseInt(configUrna.value.tempoMinutos) || 2
   const tempoBloqueioMs = minutos * 60 * 1000
   const ultimoVoto = localStorage.getItem('bloqueioVotoUrna')
@@ -227,20 +225,18 @@ const checarBloqueioVoto = () => {
   }
 }
 
-// 🔥 Salva as configurações feitas pelo Administrador/Dev
 const salvarConfigUrna = async () => {
   configUrna.value.tempoMinutos = parseInt(configUrna.value.tempoMinutos) || 2
   const sucesso = await setConfigUrna(configUrna.value)
 
   if (sucesso) {
     alert('Configurações da Urna atualizadas para todos os usuários na AWS!')
-    checarBloqueioVoto() // Atualiza a tela imediatamente (bloqueia ou libera na hora)
+    checarBloqueioVoto()
   } else {
     alert('Erro ao salvar as configurações no Firebase.')
   }
 }
 
-// 🔥 NOVA FUNÇÃO SEGURA PARA O BOTÃO DA URNA
 const toggleBloqueioUrna = () => {
   configUrna.value.bloqueioAtivo = !configUrna.value.bloqueioAtivo
   salvarConfigUrna()
@@ -250,10 +246,8 @@ onUnmounted(() => {
   if (intervaloBloqueio) clearInterval(intervaloBloqueio)
 })
 
-// 🚀 O PRIMEIRO PASSO AO ABRIR O SITE
 onMounted(async () => {
   carregandoConfig.value = true
-  // Puxa as configurações da Urna (bloqueios e minutos) do banco e depois checa se a pessoa tem trava
   configUrna.value = await getConfigUrna()
   checarBloqueioVoto()
 
@@ -485,7 +479,6 @@ const confirmarUrna = async () => {
     votoFim.value = true
     await carregarResultadosEnquete()
 
-    // 🔒 Checa a configuração no Firebase antes de bloquear a sessão
     if (configUrna.value.bloqueioAtivo) {
       const minutos = parseInt(configUrna.value.tempoMinutos) || 2
       localStorage.setItem('bloqueioVotoUrna', Date.now().toString())
@@ -686,162 +679,7 @@ const confirmarUrna = async () => {
         </div>
       </div>
 
-      <!-- 🌟 SEÇÃO DE PLACAR DA ENQUETE -->
-      <div class="pt-8 mt-8 border-t border-slate-200 dark:border-slate-800">
-        <div class="flex flex-col md:flex-row md:items-center gap-3 mb-6">
-          <span
-            class="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-black px-3 py-1.5 rounded-lg uppercase tracking-widest flex items-center gap-2 self-start"
-          >
-            <span
-              class="w-2 h-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse"
-            ></span>
-            Enquete Simbólica
-          </span>
-          <h2 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-            Pesquisa de Intenção de Voto (Presidência)
-          </h2>
-        </div>
-
-        <div
-          v-if="carregandoEnquete"
-          class="text-center py-10 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800"
-        >
-          <div
-            class="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
-          ></div>
-          <p class="text-slate-500 dark:text-slate-400 text-sm font-bold">Apurando votos...</p>
-        </div>
-
-        <div
-          v-else-if="resultadosEnquete.length === 0"
-          class="text-center py-10 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800"
-        >
-          <p class="text-slate-500 dark:text-slate-400 text-sm font-bold">
-            Nenhum voto registrado ainda. Seja o primeiro a votar!
-          </p>
-        </div>
-
-        <div
-          v-else
-          class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-sm"
-        >
-          <div class="space-y-6">
-            <div
-              v-for="(candidato, index) in resultadosEnquete.slice(0, 5)"
-              :key="candidato.id"
-              class="flex items-center gap-4"
-            >
-              <div class="relative shrink-0">
-                <img
-                  :src="candidato.fotoUrl"
-                  alt="Foto do candidato"
-                  class="w-12 h-16 sm:w-16 sm:h-20 object-cover rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
-                />
-                <div
-                  v-if="index === 0"
-                  class="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 shadow-md"
-                >
-                  1º
-                </div>
-                <div
-                  v-else
-                  class="absolute -top-2 -right-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 shadow-md"
-                >
-                  {{ index + 1 }}º
-                </div>
-              </div>
-
-              <div class="flex-grow min-w-0">
-                <div class="flex justify-between items-end mb-1">
-                  <div>
-                    <h4
-                      class="font-black text-slate-900 dark:text-white text-base sm:text-lg truncate"
-                    >
-                      {{ candidato.nomeUrna }}
-                    </h4>
-                    <p
-                      class="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase"
-                    >
-                      {{ candidato.partido }}
-                    </p>
-                  </div>
-                  <div class="text-right">
-                    <span class="text-lg sm:text-xl font-black text-purple-700 dark:text-purple-400"
-                      >{{ calcularPorcentagem(candidato.totalVotos) }}%</span
-                    >
-                  </div>
-                </div>
-
-                <div
-                  class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 mb-1 overflow-hidden"
-                >
-                  <div
-                    class="bg-gradient-to-r from-purple-500 to-indigo-500 h-3 rounded-full transition-all duration-1000 ease-out"
-                    :style="{
-                      width: `${calcularPorcentagem(candidato.totalVotos).replace(',', '.')}%`,
-                    }"
-                  ></div>
-                </div>
-                <p class="text-[10px] text-right text-slate-400 dark:text-slate-500 font-bold">
-                  {{ candidato.totalVotos }} {{ candidato.totalVotos === 1 ? 'voto' : 'votos' }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div
-            class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4"
-          >
-            <p
-              class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest"
-            >
-              Total computado:
-              <span class="text-slate-900 dark:text-white">{{ totalVotosEnquete }} votos</span>
-            </p>
-
-            <!-- 🔥 BOTÃO DA URNA OU MENSAGEM DE BLOQUEIO -->
-            <div class="w-full md:w-auto">
-              <button
-                v-if="!bloqueadoParaVoto"
-                @click="abrirUrna"
-                class="w-full px-8 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_4px_15px_rgba(147,51,234,0.4)] transition-all flex items-center justify-center gap-3 animate-pulse hover:animate-none"
-              >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                  ></path>
-                </svg>
-                Votar na Urna Virtual
-              </button>
-
-              <div
-                v-else
-                class="w-full px-6 py-3.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold text-sm uppercase tracking-widest rounded-xl shadow-inner flex items-center justify-center gap-3 cursor-not-allowed cursor-wait"
-              >
-                <svg
-                  class="w-5 h-5 animate-spin text-slate-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  ></path>
-                </svg>
-                Novo voto em: {{ tempoBloqueioFormatado }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- CAIXA DE STATUS E IMPORTAÇÃO -->
+      <!-- CAIXA DE STATUS E IMPORTAÇÃO (AGORA LOGO APÓS OS FILTROS) -->
       <div
         class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-colors mt-8"
       >
@@ -962,7 +800,7 @@ const confirmarUrna = async () => {
               </div>
             </div>
 
-            <!-- 🔥 NOVO PAINEL DE CONFIGURAÇÃO DA URNA (DEV) -->
+            <!-- PAINEL DE CONFIGURAÇÃO DA URNA (DEV) -->
             <div
               v-if="isDev"
               class="mt-4 p-5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 rounded-xl"
@@ -1104,7 +942,6 @@ const confirmarUrna = async () => {
           </div>
         </div>
 
-        <!-- BOTAO URNA ANTIGO (CASO ESTEJA ATIVADO EM TELA MENOR OU COMPLEMENTAR) -->
         <div
           v-if="isDev"
           class="mt-4 p-3 bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800/30 rounded-lg flex justify-between items-center"
@@ -1113,13 +950,166 @@ const confirmarUrna = async () => {
             >Dev: Bloqueio Urna ({{ configUrna.tempoMinutos }}m)</span
           >
           <div class="flex items-center gap-2">
-            <!-- 🔥 Função blindada chamada via script -->
             <button
               @click="toggleBloqueioUrna"
               class="px-2 py-1 bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-700 rounded text-[10px] font-bold text-purple-700 dark:text-purple-300"
             >
               {{ configUrna.bloqueioAtivo ? 'Desativar' : 'Ativar' }}
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🌟 SEÇÃO DE PLACAR DA ENQUETE (AGORA ABAIXO DO BOTÃO DE ACESSAR CANDIDATOS) -->
+      <div class="pt-8 mt-8 border-t border-slate-200 dark:border-slate-800">
+        <div class="flex flex-col md:flex-row md:items-center gap-3 mb-6">
+          <span
+            class="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-black px-3 py-1.5 rounded-lg uppercase tracking-widest flex items-center gap-2 self-start"
+          >
+            <span
+              class="w-2 h-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse"
+            ></span>
+            Enquete Simbólica
+          </span>
+          <h2 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+            Pesquisa de Intenção de Voto (Presidência)
+          </h2>
+        </div>
+
+        <div
+          v-if="carregandoEnquete"
+          class="text-center py-10 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800"
+        >
+          <div
+            class="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+          ></div>
+          <p class="text-slate-500 dark:text-slate-400 text-sm font-bold">Apurando votos...</p>
+        </div>
+
+        <div
+          v-else-if="resultadosEnquete.length === 0"
+          class="text-center py-10 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800"
+        >
+          <p class="text-slate-500 dark:text-slate-400 text-sm font-bold">
+            Nenhum voto registrado ainda. Seja o primeiro a votar!
+          </p>
+        </div>
+
+        <div
+          v-else
+          class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-sm"
+        >
+          <div class="space-y-6">
+            <div
+              v-for="(candidato, index) in resultadosEnquete.slice(0, 5)"
+              :key="candidato.id"
+              class="flex items-center gap-4"
+            >
+              <div class="relative shrink-0">
+                <img
+                  :src="candidato.fotoUrl"
+                  alt="Foto do candidato"
+                  class="w-12 h-16 sm:w-16 sm:h-20 object-cover rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
+                />
+                <div
+                  v-if="index === 0"
+                  class="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 shadow-md"
+                >
+                  1º
+                </div>
+                <div
+                  v-else
+                  class="absolute -top-2 -right-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 shadow-md"
+                >
+                  {{ index + 1 }}º
+                </div>
+              </div>
+
+              <div class="flex-grow min-w-0">
+                <div class="flex justify-between items-end mb-1">
+                  <div>
+                    <h4
+                      class="font-black text-slate-900 dark:text-white text-base sm:text-lg truncate"
+                    >
+                      {{ candidato.nomeUrna }}
+                    </h4>
+                    <p
+                      class="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase"
+                    >
+                      {{ candidato.partido }}
+                    </p>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-lg sm:text-xl font-black text-purple-700 dark:text-purple-400"
+                      >{{ calcularPorcentagem(candidato.totalVotos) }}%</span
+                    >
+                  </div>
+                </div>
+
+                <div
+                  class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 mb-1 overflow-hidden"
+                >
+                  <div
+                    class="bg-gradient-to-r from-purple-500 to-indigo-500 h-3 rounded-full transition-all duration-1000 ease-out"
+                    :style="{
+                      width: `${calcularPorcentagem(candidato.totalVotos).replace(',', '.')}%`,
+                    }"
+                  ></div>
+                </div>
+                <p class="text-[10px] text-right text-slate-400 dark:text-slate-500 font-bold">
+                  {{ candidato.totalVotos }} {{ candidato.totalVotos === 1 ? 'voto' : 'votos' }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4"
+          >
+            <p
+              class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest"
+            >
+              Total computado:
+              <span class="text-slate-900 dark:text-white">{{ totalVotosEnquete }} votos</span>
+            </p>
+
+            <div class="w-full md:w-auto">
+              <button
+                v-if="!bloqueadoParaVoto"
+                @click="abrirUrna"
+                class="w-full px-8 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_4px_15px_rgba(147,51,234,0.4)] transition-all flex items-center justify-center gap-3 animate-pulse hover:animate-none"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                  ></path>
+                </svg>
+                Votar na Urna Virtual
+              </button>
+
+              <div
+                v-else
+                class="w-full px-6 py-3.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold text-sm uppercase tracking-widest rounded-xl shadow-inner flex items-center justify-center gap-3 cursor-not-allowed cursor-wait"
+              >
+                <svg
+                  class="w-5 h-5 animate-spin text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
+                </svg>
+                Novo voto em: {{ tempoBloqueioFormatado }}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1140,7 +1130,6 @@ const confirmarUrna = async () => {
           X
         </button>
 
-        <!-- LADO ESQUERDO: TELA -->
         <div class="flex-grow p-4 sm:p-8">
           <div
             class="bg-[#f0f0f0] border-4 border-slate-300 w-full h-[320px] p-4 flex flex-col font-mono text-slate-800 shadow-inner relative overflow-hidden"
@@ -1226,7 +1215,6 @@ const confirmarUrna = async () => {
           </div>
         </div>
 
-        <!-- LADO DIREITO: TECLADO NUMÉRICO -->
         <div
           class="w-full sm:w-[320px] bg-[#292a2a] p-6 flex flex-col justify-center items-center shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.3)]"
         >

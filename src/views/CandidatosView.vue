@@ -465,7 +465,7 @@ const atualizarTodosStatus = async () => {
     try {
 
       if (!isDev) {
-        await sleep(tempoAleatorio(150, 300))
+        await sleep(tempoAleatorio(500, 900))
         progressoGlobal.value.atual++
         continue
       }
@@ -489,7 +489,7 @@ const atualizarTodosStatus = async () => {
 
     progressoGlobal.value.atual++
 
-    // Atraso real apenas no localhost
+
     if (isDev) {
       await sleep(tempoAleatorio(800, 1200))
     }
