@@ -525,7 +525,7 @@ const getDadosSelo = (situacao) => {
 
   if (sitUpper.includes('DEFERIDO')) {
     return {
-      texto: 'FICHA LIMPA',
+      texto: 'DEFERIDO',
       cor: 'bg-emerald-500 text-white border-emerald-600 shadow-emerald-900/50',
       icone: '✅',
       animacao: '',
